@@ -28,7 +28,7 @@
 ## 3. 计划（v1 四件套）
 
 - [x] M0 脚手架：WPF 工程、无边框壳、侧栏导航、主题、DEVLOG
-- [ ] M1 同步：Core(Sync) + tests(A–E) + 同步页 UI + mrpack 种子导入
+- [~] M1 同步：Core(Sync) + tests(119 检查全绿) ✅；同步页 UI + mrpack 种子导入接线 ⏳
 - [ ] M2 启动：Java 探测/下载、1.20.1/fabric 启动链、离线 + 微软登录、日志面板
 - [ ] M3 状态页：SLP varint + HTTP 探测 + 30s 轮询
 - [ ] M4 发布：单文件自包含 exe + 文档
@@ -39,3 +39,12 @@
   侧栏导航四入口（首页/轻蓝同步/服务器状态/设置）。壁纸素材计划从 `HMCL-3.16.4-ql2.jar`
   的 `assets/img/wallpapers/ql/` 直接取用（原图来自用户自己的服务器截图）。
   下一步：Core(Sync) 三个模型 + 目录布局 + 状态文件（照 §2/§7 复刻），tests 五场景。
+- **2026-11-02 M1 引擎**：`Core/Sync/`（Manifest 严格校验 / SyncState `.corrupt` 兜底 / DirectoryLayout
+  recover 四分支 / SyncManager.Analyze+Sync / SeedImporter mrpack+seedize / DblPack 清单）+ `Net/QlHttp`
+  （.part + SHA-1 校验 + 候选 URL 重试）。测试 `tests/Qinglan.Tests` 四个套件 **119 检查全绿**：
+  A 新装 8 下载 / B 幂等 / C 关 dh（std+pfm 各一次 RENAME）/ D 切 pfm 零下载 / E 切回、purge（双频道各删一）、
+  部分失败不记账、取消不记账、Analyze 干跑、FULL/LITE 种子、dblpack 元数据、坏 mrpack 拒收。
+  坑位记录：① 下载必须**先建父目录**再写 `.part`（mods-pfm/resourcepacks 这类不存在的目录曾全军覆没）；
+  ② `MiniHttpServer.AddFile` 只进内存词典，禁止顺手落盘（曾把 `Path.Combine` 根路径写穿到 `D:\mods`）；
+  ③ `Fx.Manifest` 的 pfm 缺省镜像 std 三个条目，planned 总数 = 3+3+2 = 8，C/E 的 rename 在两个频道各发生一次。
+  下一步：SyncPage UI（查更新/频道切换/可选勾选/应用/导入区，versionId `-full` 剥离）→ 提交 M1 UI。
