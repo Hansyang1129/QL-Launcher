@@ -53,13 +53,16 @@ public static class QlSyncManager
 
     /// <summary>执行完整同步。进度：对账（hash）阶段每个条目报一次(finished,total)；
     /// 下载阶段不报中间进度（与 HMCL 实现同口径）。</summary>
+    /// <param name="manifestUrl">本次所用 manifest 地址；非空时随成功 sync 记入状态文件，
+    /// 下次启动可以直接续用（对齐 HMCL 的 saveManifestUrl）。</param>
     public static QlSyncOutcome Sync(string gameDir, QlManifest manifest, string targetChannel,
         Dictionary<string, bool>? optionalExtras = null, Action<int, int>? listener = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default, string? manifestUrl = null)
     {
         var state = QlSyncState.Load(gameDir);
         var outcome = new QlSyncOutcome();
-        RunCore(gameDir, manifest, state, targetChannel, optionalExtras, listener, apply: true, outcome, ct);
+        RunCore(gameDir, manifest, state, targetChannel, optionalExtras, listener, apply: true, outcome, ct,
+            summary: null, manifestUrl);
         return outcome;
     }
 
@@ -78,7 +81,8 @@ public static class QlSyncManager
 
     private static void RunCore(string gameDir, QlManifest manifest, QlSyncState state, string targetChannel,
         Dictionary<string, bool>? optionalExtras, Action<int, int>? listener, bool apply,
-        QlSyncOutcome? outcomeBundle, CancellationToken ct, QlSyncAnalysis? summary = null)
+        QlSyncOutcome? outcomeBundle, CancellationToken ct, QlSyncAnalysis? summary = null,
+        string? manifestUrl = null)
     {
         // --- 1. 频道方向 ------------------------------------------------------------
         var marker = QlDirectoryLayout.DetectActiveChannel(gameDir, state.ActiveChannel);
@@ -222,6 +226,7 @@ public static class QlSyncManager
             }
             state.ReplaceTracked(newTracked);
             state.PackVersion = manifest.PackVersionOrDefault();
+            if (!string.IsNullOrWhiteSpace(manifestUrl)) state.ManifestUrl = manifestUrl;
             state.Save(gameDir);
 
             // dblpack 清单尽量跟着刷新，失败绝不拖累同步。

@@ -48,3 +48,17 @@
   ② `MiniHttpServer.AddFile` 只进内存词典，禁止顺手落盘（曾把 `Path.Combine` 根路径写穿到 `D:\mods`）；
   ③ `Fx.Manifest` 的 pfm 缺省镜像 std 三个条目，planned 总数 = 3+3+2 = 8，C/E 的 rename 在两个频道各发生一次。
   下一步：SyncPage UI（查更新/频道切换/可选勾选/应用/导入区，versionId `-full` 剥离）→ 提交 M1 UI。
+- **2026-11-02 M1 UI**：`SyncPage` 落地（对齐 HMCL-QL QLSyncPage 四能力 + 种子导入块）：实例卡
+  （目录/包版本/频道即时展示）、manifest 地址框（URL 一动即作废已抓 manifest 并锁应用，M14 同效）、
+  频道单选、可选组勾选（fetch 后按 manifest.OptionalGroups 重建，State 预填）、查更新 = fetch→Analyze
+  →摘要（切频道/需下载/将重命名/将清理）、应用 = Sync+进度条（部分失败提示续传语义）、取消按钮；
+  种子导入 = ReadHead 预览（名字/版本/MC/Loader）→ InstallMrpackAsync → Seedize → 摘要引导再同步。
+  `SettingsPage` 真身：游戏目录选择 + 打开目录/日志。新增 `Core/Config/QlConfig`（data/config.json，
+  损坏容忍）与 `Ui/Pickers`（OpenFolderDialog/OpenFileDialog）。引擎补：`Sync(…, manifestUrl)` 成功后
+  记入状态文件；`QlSeedImporter.ReadHead/NormalizeVersionId`（照 QLManifestTool.normalizePackVersion：
+  大小写不敏感剥 `-full`）。
+  复刻查证（读 Java 源）：optional 后缀对 MODS_CHANNELS **每个**频道条目生效（QLSyncManager
+  collectDesiredFiles 274-283 行）；QL-HMCL 行为备忘 §7-119 的「optional 只对 std 生效」是**发布器约定**
+  （pfm 条目从不带 optional），引擎不受此限——本仓库与 Java 引擎同轨。
+  冒烟：构建 0 错 0 警；测试 119/119 绿；GUI 存活 >9s。提交 `M1 UI`。
+  下一步：M2 启动链（Java 探测/下载 → 1.20.1 fabric 启动 → 离线/微软登录 → 日志面板）。
