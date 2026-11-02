@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Qinglan.Launcher</RootNamespace>
+    <AssemblyName>QinglanLauncher</AssemblyName>
+    <Version>1.0.0</Version>
+    <Product>轻蓝启动器</Product>
+    <AssemblyTitle>轻蓝启动器</AssemblyTitle>
+    <Company>轻蓝 MTR 2.0 社区</Company>
+    <Copyright>轻蓝 MTR 2.0 社区</Copyright>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- 本仓库不含外部 NuGet 包；出现 PackageReference 属于事故 -->
+    <SelfContained Condition="'$(SelfContained)' == ''">false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 壁纸等素材随输出走（磁盘读取：加图零重建） -->
+    <Content Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+
+</Project>
