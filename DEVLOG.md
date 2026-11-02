@@ -28,7 +28,7 @@
 ## 3. 计划（v1 四件套）
 
 - [x] M0 脚手架：WPF 工程、无边框壳、侧栏导航、主题、DEVLOG
-- [~] M1 同步：Core(Sync) + tests(119 检查全绿) ✅；同步页 UI + mrpack 种子导入接线 ⏳
+- [x] M1 同步：Core(Sync) + tests(119 检查全绿)；同步页 UI + mrpack 种子导入接线真窗 4 页截图通过
 - [ ] M2 启动：Java 探测/下载、1.20.1/fabric 启动链、离线 + 微软登录、日志面板
 - [ ] M3 状态页：SLP varint + HTTP 探测 + 30s 轮询
 - [ ] M4 发布：单文件自包含 exe + 文档
@@ -61,4 +61,24 @@
   collectDesiredFiles 274-283 行）；QL-HMCL 行为备忘 §7-119 的「optional 只对 std 生效」是**发布器约定**
   （pfm 条目从不带 optional），引擎不受此限——本仓库与 Java 引擎同轨。
   冒烟：构建 0 错 0 警；测试 119/119 绿；GUI 存活 >9s。提交 `M1 UI`。
+  下一步：M2 启动链（Java 探测/下载 → 1.20.1 fabric 启动 → 离线/微软登录 → 日志面板）。
+- **2026-11-02 M1 收口**：揪出并修掉两枚被前几轮冒烟掩盖的真 bug + 截图自动化定型。
+  ① **窗口根本没弹出来过**：`App.xaml` 一直缺 `StartupUri`，App.xaml.cs 也没 new MainWindow——
+  应用无窗空转，M0 冒烟「进程存活 >9s」全是**假阳性**。已补 `StartupUri="MainWindow.xaml"`。
+  流程铁律新增：GUI 冒烟必须等到主窗句柄/页面真渲染，进程存活≠窗口存在。
+  ② **导航切页失灵**：RadioButton 挂的是 `Click`，而程序化切选（UIA Select/设 IsChecked）只触发
+  `Checked` 路由事件——表现为高亮走了、内容区纹丝不动（前两轮截图铁证）。改为 `Checked="OnNav"`
+  并加 `_suppressNav` 防重入 guard；真人鼠标路径同样由 Checked 覆盖，行为无损。
+  ③ **截图自动化终于定型**（`%TEMP%\ql-tmp\shot.ps1`）：
+  纯鼠标点击两条死路——后台进程 SetForegroundWindow 被前台锁拦（截图混入 QQ），且第一下点击
+  被「激活窗口」吞掉不落到控件；定型方案 = Alt 键解锁 + SetForegroundWindow + HWND_TOPMOST
+  置顶还原，切页一律走 UIA SelectionItemPattern（不依赖鼠标/前台），PSScript 全体 try/finally
+  强制收尾杀进程（此前孤儿进程锁 exe 导致 MSB3027 编译连败 10 次重试）。
+  成果：01-home / 02-sync / 03-status / 04-settings 四页真窗截图落档 `ql-tmp/shots/`；首页
+  MTR 2.0 主视觉 + 启动游戏、同步页 manifest/频道/可选组/种子导入、状态页 M3 占位、设置页
+  游戏目录 + 关于，底部状态条随页切换。构建 0 错 0 警，引擎测试态不变（119/119 未触碰）。
+  ④ **产品事实（用户口述）**：真实游戏目录 `<gameDir>\.minecraft\versions\Qinglan-2nd-RPU\`；
+  其 `mods/qlrpu-client-qlserver-1.0.0.jar`（4.8MB）是**资源包同步引擎 jar**（客户端+服务端），
+  归整合包/资源服务器侧管；**模组不走独立 jar**，计划统一由包更新（manifest 通道）落地——
+  本仓库同步引擎语义不变，QLRPU jar 在 sync 视角按 manifest 条目正常同步/不误删即可。
   下一步：M2 启动链（Java 探测/下载 → 1.20.1 fabric 启动 → 离线/微软登录 → 日志面板）。

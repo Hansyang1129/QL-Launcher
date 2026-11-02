@@ -55,13 +55,13 @@
                 </DockPanel>
                 <StackPanel x:Name="NavPanel" Margin="0,10,0,0">
                     <RadioButton GroupName="Nav" Content="首页" Tag="&#xE80F;"
-                                 Style="{StaticResource NavItem}" IsChecked="True" Click="OnNav"/>
+                                 Style="{StaticResource NavItem}" IsChecked="True" Checked="OnNav"/>
                     <RadioButton GroupName="Nav" Content="轻蓝同步" Tag="&#xE72C;"
-                                 Style="{StaticResource NavItem}" Click="OnNav"/>
+                                 Style="{StaticResource NavItem}" Checked="OnNav"/>
                     <RadioButton GroupName="Nav" Content="服务器状态" Tag="&#xE9D9;"
-                                 Style="{StaticResource NavItem}" Click="OnNav"/>
+                                 Style="{StaticResource NavItem}" Checked="OnNav"/>
                     <RadioButton GroupName="Nav" Content="设置" Tag="&#xE713;"
-                                 Style="{StaticResource NavItem}" Click="OnNav"/>
+                                 Style="{StaticResource NavItem}" Checked="OnNav"/>
                 </StackPanel>
             </DockPanel>
         </Border>

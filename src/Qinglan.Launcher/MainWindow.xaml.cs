@@ -14,6 +14,7 @@ public partial class MainWindow : Window
     private static MainWindow? _current;
     private readonly Dictionary<PageKey, UserControl> _pages = new();
     private PageKey _active;
+    private bool _suppressNav;
 
     public MainWindow()
     {
@@ -28,9 +29,10 @@ public partial class MainWindow : Window
     private void OnMinimize(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 
-    /// <summary>侧栏点击： RadioButton 在 NavPanel 里的索引即页键。</summary>
+    /// <summary>侧栏选中状态变化（鼠标/程序化均触发 Checked）：索引即页键。</summary>
     private void OnNav(object sender, RoutedEventArgs e)
     {
+        if (_suppressNav) return;
         if (sender is not RadioButton rb) return;
         int index = NavPanel.Children.IndexOf(rb);
         if (index >= 0 && (PageKey)index != _active)
@@ -42,10 +44,18 @@ public partial class MainWindow : Window
     {
         if (NavPanel is not null)
         {
-            for (int i = 0; i < NavPanel.Children.Count; i++)
+            _suppressNav = true;
+            try
             {
-                if (NavPanel.Children[i] is RadioButton rb)
-                    rb.IsChecked = (PageKey)i == key;
+                for (int i = 0; i < NavPanel.Children.Count; i++)
+                {
+                    if (NavPanel.Children[i] is RadioButton rb)
+                        rb.IsChecked = (PageKey)i == key;
+                }
+            }
+            finally
+            {
+                _suppressNav = false;
             }
         }
         if (!_pages.TryGetValue(key, out var uc))
