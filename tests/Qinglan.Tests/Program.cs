@@ -14,6 +14,7 @@ try
     LayoutSuite.Run();
     SyncScenariosSuite.Run();
     SeedDblpackSuite.Run();
+    LaunchSuite.Run();
 }
 finally
 {

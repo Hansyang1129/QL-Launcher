@@ -5,6 +5,7 @@ obj/
 *.suo
 data/
 publish/
+dist/
 *.mrpack
 *.corrupt
 .tmp/

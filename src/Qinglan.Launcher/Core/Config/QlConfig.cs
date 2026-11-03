@@ -7,6 +7,9 @@ public sealed class QlConfig
     /// <summary>QL2 实例的游戏目录（含 mods/ 的根文件夹）。</summary>
     [JsonPropertyName("gameDir")] public string? GameDir { get; set; }
 
+    /// <summary>手工指定的 Java（bin 上级目录）；空 = 自动探测。</summary>
+    [JsonPropertyName("javaDir")] public string? JavaDir { get; set; }
+
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     /// <summary>装载；文件缺失或损坏时给空配置。</summary>

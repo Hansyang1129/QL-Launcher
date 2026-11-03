@@ -29,7 +29,8 @@
 
 - [x] M0 脚手架：WPF 工程、无边框壳、侧栏导航、主题、DEVLOG
 - [x] M1 同步：Core(Sync) + tests(119 检查全绿)；同步页 UI + mrpack 种子导入接线真窗 4 页截图通过
-- [ ] M2 启动：Java 探测/下载、1.20.1/fabric 启动链、离线 + 微软登录、日志面板
+- [~] M2 启动：引擎 a 段落地（版本合并/规划下载/natives/参数/Java 探测/进程壳，172 检查全绿）✅；
+      UI 接线 + 微软 OAuth + JRE 缺位自动下载 ⏳
 - [ ] M3 状态页：SLP varint + HTTP 探测 + 30s 轮询
 - [ ] M4 发布：单文件自包含 exe + 文档
 
@@ -82,3 +83,24 @@
   归整合包/资源服务器侧管；**模组不走独立 jar**，计划统一由包更新（manifest 通道）落地——
   本仓库同步引擎语义不变，QLRPU jar 在 sync 视角按 manifest 条目正常同步/不误删即可。
   下一步：M2 启动链（Java 探测/下载 → 1.20.1 fabric 启动 → 离线/微软登录 → 日志面板）。
+- **2026-11-02 M2a 启动链引擎**：`Core/Launch/` 七件套 —— QlVersionJson（解析/合并/规则求值）、
+  QlLaunchPrep（meta 解析 → 合并 → 计划 → 8 路并行下载 → natives 解包 → Finalize 套餐）、
+  QlSession（离线身份）、QlArgsBuilder（模板变量注入）、QlJavaLocator（常用位扫描 + -version 判真）、
+  QlGameProcess（args 启动 + stdout/stderr 逐行 + 退出码事件）；QlConfig 增 javaDir。
+  **真实基准已抓档**（`ql-tmp/m2/vanilla-1.20.1.json` + `fabric-profile.json`），拿真数据修出的规则：
+  ① 1.20.1：assetIndex id=**"5"**（totalSize≈652MB）、客户端 23MB/88 库；natives **扁平化**——
+  `:natives-windows(-arm64/-x86)` 变体是普通库条目（rules 按 os 放行），x64 机则裁 arm64/x86 变体；
+  ② fabric profile：mainClass=KnotClient、**arguments.game 为空数组**（必须吃 vanilla 的）、
+  jvm=`-DFabricMcEmu= net.minecraft.client.main.Main `（**单 token 内嵌空格**）、库列表**无 downloads**
+  → maven name 拼路径 + url 基地址（maven.fabricmc.net）；
+  ③ feature 参数（demo/宽高/quickPlay）v1 不启用；--clientId/--xuid 离线空值成对剔除；
+  ④ tokens：离线 UUID = MD5("OfflinePlayer:"+name) 大端 hex + v3/variant 位（与 Java 同构），
+  accessToken "0"、userType legacy；log4j 配置在手则**显式追加** `-Dlog4j.configurationFile=`。
+  版本隔离（对齐真实例观察）：versions/ libraries/ assets/ natives 落游戏目录内。
+  下载口径同同步引擎：缺（大小不符）才下、SHA-1 写后强校验、资源索引损坏当场重下一次。
+  测试 **172/172 全绿**（旧 119 + 新 53）：合并去重/规则裁剪/幂等规划/落盘校验/natives 解包/
+  类路径序/参数注入/空对剔除/UUID 语义/版本行解析（17.x + 1.8 老记法）/进程壳（cmd exit 42 + 行流）。
+  坑位：CheckEq 三参签名（name, expected, actual）——按老套件口径；feature 规则可能缺 action 宽容 allow。
+  交付：`dist/m1-sync` + `dist/m2a-launch-engine`（exe 可跑；引擎 UI 接线在 M2b）。
+  下一站：M2b —— UI 接线（首页 启动游戏 → 实例/用户名/内存 → 下载进度 → 日志面板）+
+  微软 OAuth（device code）+ JRE 缺位自动下载。
