@@ -15,6 +15,8 @@ try
     SyncScenariosSuite.Run();
     SeedDblpackSuite.Run();
     LaunchSuite.Run();
+    AuthSuite.Run();
+    RuntimeSuite.Run();
 }
 finally
 {

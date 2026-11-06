@@ -15,7 +15,8 @@ public static class QlHttp
         PooledConnectionLifetime = TimeSpan.FromMinutes(5),
     })
     {
-        Timeout = TimeSpan.FromSeconds(60),
+        // 大文件单请求（JRE zip 44MB、asset index 慢链路）需要长超时；连接超时另有 15s 兜底。
+        Timeout = TimeSpan.FromMinutes(10),
         DefaultRequestHeaders = { { "User-Agent", "Qinglan Launcher/" + Globals.Version } },
     };
 

@@ -10,6 +10,12 @@ public sealed class QlConfig
     /// <summary>手工指定的 Java（bin 上级目录）；空 = 自动探测。</summary>
     [JsonPropertyName("javaDir")] public string? JavaDir { get; set; }
 
+    /// <summary>微软登录 refresh_token（静默续期用）；空 = 没登录过微软账号。</summary>
+    [JsonPropertyName("microsoftRefreshToken")] public string? MicrosoftRefreshToken { get; set; }
+
+    /// <summary>游戏内存上限 MB；0 = 自动（按物理内存取 1/4，夹 [2048, 8192]）。</summary>
+    [JsonPropertyName("maxMemoryMb")] public int MaxMemoryMb { get; set; }
+
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     /// <summary>装载；文件缺失或损坏时给空配置。</summary>

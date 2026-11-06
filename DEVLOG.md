@@ -104,3 +104,21 @@
   交付：`dist/m1-sync` + `dist/m2a-launch-engine`（exe 可跑；引擎 UI 接线在 M2b）。
   下一站：M2b —— UI 接线（首页 启动游戏 → 实例/用户名/内存 → 下载进度 → 日志面板）+
   微软 OAuth（device code）+ JRE 缺位自动下载。
+- **2026-11-06 M2b-1 登录 + JRE 引擎**：`Core/Auth/QlMicrosoftAuth.cs`（设备码全链：devicecode →
+  轮询 pending/slow_down/declined/expired → XBL(RPS 工单 d=<ms>) → XSTS(RETAIL/xsts → rp
+  minecraftservices，401 体 XErr 语义表 233/235/236/237/238) → login_with_xbox(XBL3.0 x=<uhs>;<t>) →
+  profile(Bearer → id/name → 连字符 UUID)；RefreshAsync refresh_token 静默续期（没回发就沿用旧值））
+  + `Core/Launch/QlMojangRuntime.cs`（固定 sha 的 all.json → downloads[windows-x64][component] 首个
+  大版本达标候选 → manifest files 表装配：目录创建/link 跳过/仅 LZMA 快速报错/就位文件 SHA-1 复验
+  才免下/8 路下载 → 扫 bin/java.exe 定 Home；键带组件/平台前缀也能落家）。产物进 dataDir/runtimes/，
+  QlJavaLocator 现成扫到（闭环）。`QlConfig` 加 microsoftRefreshToken / maxMemoryMb。
+  MiniHttpServer 扩展：POST 唇言与头块记录 + 序列应答器（第 n 次给第 n 个应答）+ 命中计数。
+  测试 **212/212 全绿**（+40）：登录 26 项（请求体逐形状断言）+ 运行时 14 项（路由/缺才下/校验重下/
+  LZMA 拒装）。夹具教训：① gamma 组只会有 17.x——把 21 塞 gamma 组造出的"路由跳新-major"场景不是
+  真实世界形态，Mojang 组内候选大头版本一致，首个达标即正解；② 预期抛断言忘包 try/catch 会把
+  runner 整个炸掉（退出码 0xE0434352），异常场景必须 try/catch + 断言类型/消息。
+  设计决策：**微软 client id 走配置**——fork 的 client id 是 gradle/CI 注入（源码/构建产物里都没有），
+  v1 默认空 = 禁用微软登录入口（离线登录照常），用户注册 Azure 应用后填入 config.json 即启用。
+  JRE 只吃 raw 下载（lzma-only 明确报错，v1 不手写 LZMA 解码）。QlHttp 超时 60s → 10min
+  （ConnectTimeout 15s 单独兜底；44MB JRE / 慢索引单请求需要长尾）。
+  下一站：M2b-2 UI 接线（首页 启动游戏 → 账号/登录弹层/内存 → 预备进度 → 日志面板 + 版行流）。
