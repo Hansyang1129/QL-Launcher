@@ -122,3 +122,33 @@
   JRE 只吃 raw 下载（lzma-only 明确报错，v1 不手写 LZMA 解码）。QlHttp 超时 60s → 10min
   （ConnectTimeout 15s 单独兜底；44MB JRE / 慢索引单请求需要长尾）。
   下一站：M2b-2 UI 接线（首页 启动游戏 → 账号/登录弹层/内存 → 预备进度 → 日志面板 + 版行流）。
+- **2026-11-17 RPU 引擎对接（缓存预热）**：启动器同步引擎对接 RPU 系统（`qlrpu-client-qlserver-1.0.0.jar`
+  ↔ `rpu.example.com`），替代已死的旧 manifest 源。范围锁定**缓存预热**：只填充
+  `<gameDir>/qlrpu/cache/objects`，不解密、不装 /keys（明文完整认证是游戏内 Mod 挂载期的事，
+  引擎无 VERIFYING 阶段，共 6 阶段：初始化/在线授权与获取发布/扫描本地文件/探测下载源/下载缺失
+  资源/校验完成），永不碰 objects 外的任何文件。产物：`Core/Sync/Rpu/` 六件——RpuEd25519（RFC8032
+  零依赖验签，BigInteger）、RpuProtocol（模型/验签/校验/QRPUOBJ1 分段对象）、RpuClient（sessions/
+  latest/manifest/sources/check/tickets/keys + 429/503 退避 + 401 重签）、RpuCache（密文名
+  `<cipherSha256>.obj/.part`、update.lock 区域锁与 Java FileLock 互查、current.json 原子提交、
+  7..90 天保留期清理）、RpuDeploymentConfig（exe 旁 qlrpu-client.json 覆盖 apiBase/公钥，SPKI 去
+  头 32B）、RpuSyncEngine（check 128/批、无效对象上报空 cipherSha256、required 必须批内子集、
+  工单 3 次重试 1s/2s、commit 快照后再清理）。
+  线上地面真相（探针实测，`ql-tmp/rpu-live/`）：releaseId `a5f2…1655`、30 包/6964 文件/密文
+  1,555,033,651B；**实测翻出四处协议细节**：① 清单 `packFormat` 是数字（15），Gson 对 String 字段
+  数字/字符串二象兼容——STJ 直接炸，补 `RpuNumberOrStringConverter`；② `resourcePath` 真实规则是
+  「非空/无首尾斜杠/无反斜杠/无盘符/段非空且非 . ../无 <0x20 与 0x7F」——**无小写限制无长度上限**
+  （小写正则 `[a-z0-9/._-]+` 属挂载期 PackResourceIndex，与清单校验无关；线上真实路径
+  `TW_spectial.png` 大写直接打脸第一版）；③ `validate` 的条目失败共用一句「资源路径、大小或哈希
+  无效。」，包元数据要求 name/description 非空且包 id 全局唯一（「资源包元数据无效。」），objectId
+  冲突比四字段，空 packs 合法；④ ClientApi 的 UA 是硬编码字面量 `QingLanRPU/1.0 protocol/1`
+  （与 modVersion 1.0.0 无关）且带 `Accept-Encoding: identity`。
+  本轮修出的真 bug：AesGcm.Decrypt 参数序（aad 占了 plaintext 槽，空对象即炸）；RpuClient
+  EnsureSession↔Exchange 无限互递归（/sessions 的 POST 必须跳过会话前置）；ProbeSourcesAsync
+  从未上报 Sources 阶段事件。测试侧两坑：**用户开着 Watt Toolkit 系统代理且旁路不含 127.0.0.1**，
+  默认 HttpClient 把回环请求全送进代理导致老套件 38 项连坐——tests/Program.cs 统一
+  `HttpClient.DefaultProxy = new WebProxy()`；MiniHttpServer 只对 responder 路径记录请求头。
+  测试 **379/379 全绿**（212 + RpuSuite 11 组 167 项）：Ed25519 RFC/JDK 向量、线上信封回归（真实
+  3MB 清单验签+解析+校验）、分段对象往返/篡改、清单校验、缓存锁/快照/对象/清理、部署配置、
+  客户端形状/重试/错误文案、引擎端到端（假服务器四轮：全量下载→零下载+本地快照→陈旧清理→
+  篡改自愈）。构建 0 错 0 警。
+  下一步：M2b-2 UI 接线 → M3 状态页 → M4 发布；RPU 的 UI 挂点（同步页内嵌 RPU 进度）待 M2b-2 一并接。

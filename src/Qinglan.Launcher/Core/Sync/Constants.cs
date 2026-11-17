@@ -11,4 +11,10 @@ public static class QlConstants
 
     /// <summary>实例内容清单文件名（种子导入生成、每次成功 sync 刷新）。</summary>
     public const string DblpackFile = "dblpack.json";
+
+    /// <summary>RPU 更新服务 apiBase（部署配置缺省值；可被启动器旁 qlrpu-client.json 覆盖）。</summary>
+    public const string DefaultRpuApiBase = "https://rpu.example.com/api/v1/client";
+
+    /// <summary>RPU 发布清单 Ed25519 部署公钥（SPKI DER 的 base64，末 32 字节为裸钥）。</summary>
+    public const string DefaultRpuSigningPublicKey = "REMOVED-RPU-KEY";
 }
