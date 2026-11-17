@@ -5,12 +5,12 @@ namespace Qinglan.Launcher.Ui;
 /// <summary>文件夹 / 整合包选择对话框（WPF 内置，零 NuGet）。</summary>
 internal static class Pickers
 {
-    /// <summary>选游戏目录；取消返回 null。</summary>
+    /// <summary>选游戏根目录；取消返回 null。</summary>
     public static string? Folder(Window? owner)
     {
         var dlg = new Microsoft.Win32.OpenFolderDialog
         {
-            Title = "选择轻蓝实例的游戏目录",
+            Title = "选择游戏根目录（.minecraft）",
             Multiselect = false,
         };
         if (owner is not null)

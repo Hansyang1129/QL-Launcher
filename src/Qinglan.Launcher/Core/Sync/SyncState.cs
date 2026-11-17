@@ -12,17 +12,28 @@ public sealed class QlSyncState
     /// <summary>游戏目录内的状态文件名。</summary>
     public const string StateFile = "ql-manifest-state.json";
 
-    /// <summary>上次成功应用的 manifest 的整合包版本。</summary>
+    /// <summary>上次成功应用的整合包版本。</summary>
     [JsonPropertyName("packVersion")] public string? PackVersion { get; set; }
 
-    /// <summary>用户认可/输入的 manifest 地址；空白回落默认地址。</summary>
+    /// <summary>遗留字段：旧 manifest-JSON 引擎的更新源；只读兼容，新引擎不再写入。</summary>
+    /// <para>当前引擎由整合包文件自身驱动，见 <see cref="PackUrl"/>。</para>
     [JsonPropertyName("manifestUrl")] public string? ManifestUrl { get; set; }
 
-    /// <summary>当前活跃频道：std 或 pfm。</summary>
+    /// <summary>本实例的更新源：当初应用整合包用的 .mrpack 地址（或 file: URI）。</summary>
+    /// <para><see langword="null"/> = 用户得重新挑包文件——启动器刻意不把远端地址烘进构建；
+    /// 空白串在写入时归一成 <see langword="null"/>。</para>
+    [JsonPropertyName("packUrl")] public string? PackUrl { get; set; }
+
+    /// <summary>当前活跃频道；新版恒为 std，保留此字段只为旧状态文件格式兼容。</summary>
     [JsonPropertyName("activeChannel")] public string ActiveChannel { get; set; } = "std";
 
-    /// <summary>用户启用的可选组。</summary>
+    /// <summary>用户启用的可选 mod 组。</summary>
     [JsonPropertyName("enabledOptional")] public List<string> EnabledOptional { get; set; } = new();
+
+    /// <summary><see cref="EnabledOptional"/> 是否已反映一次真实选择。</summary>
+    /// <para>全新实例没有这条记录，所以第一次应用按包随附状态全组启用；之后缺席的组
+    /// 就意味着用户主动禁用了它（空列表是「决定」而不是「没记录」）。</para>
+    [JsonPropertyName("optionalRecorded")] public bool OptionalRecorded { get; set; }
 
     /// <summary>上次安装的文件：频道名 -> 逻辑路径 -> sha1。</summary>
     [JsonPropertyName("tracked")]

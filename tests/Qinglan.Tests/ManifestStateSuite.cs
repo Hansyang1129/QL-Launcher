@@ -1,9 +1,8 @@
 using Qinglan.Launcher.Core;
-using Qinglan.Launcher.Core.Net;
 
 namespace Qinglan.Tests;
 
-/// <summary>manifest 严格校验 / 可选组 / 状态文件语义。</summary>
+/// <summary>manifest 严格校验 / RPU 归属 / 可选组 / 状态文件语义。</summary>
 internal static class ManifestStateSuite
 {
     public static void Run()
@@ -13,6 +12,7 @@ internal static class ManifestStateSuite
         InvalidManifestsThrow();
         OptionalGroupsAndEffective();
         NormalizeChannel();
+        RpuOwnership();
 
         T.Group("状态文件 ql-manifest-state.json");
         StateRoundtrip();
@@ -32,6 +32,7 @@ internal static class ManifestStateSuite
             ("mods/B.jar", "B", (string?)null),
         }, common: new[] { ("config/x.toml", "x") });
         var m = QlManifest.FromJson(data.Json);
+        // 历史的 pfm 频道允许出现（只读兼容），但必需频道只有 std + common。
         T.Check("schema/通道齐备的 manifest 可解析", m.Schema == 1 && m.Channels!.Count == 3);
         T.Check("pack 默认值", m.PackNameOrDefault() == "Qinglan-Test" && m.PackVersionOrDefault() == "1.0.0-test");
     }
@@ -47,6 +48,12 @@ internal static class ManifestStateSuite
         var noCommon = baseJson.Replace("\"common\"", "\"commonX\"");
         T.Check("缺 common 被拒", ThrowsManifest(Fx.WithBaseUrl(noCommon, "http://x/")));
 
+        // 新版只认单一 mods 频道：缺 std 的 manifest（哪怕是 pfm-only）也被拒。
+        var noStd = "{ \"schema\": 1, \"pack\": {\"name\":\"n\",\"version\":\"v\"}, \"channels\": { " +
+                    "\"pfm\": {\"label\":\"l\",\"mods\":[],\"files\":[]}, " +
+                    "\"common\": {\"label\":\"l\",\"mods\":[],\"files\":[]} } }";
+        T.Check("缺 std（pfm-only）被拒", ThrowsManifest(noStd));
+
         var unsafePath = baseJson.Replace("mods/A.jar", "../mods/A.jar");
         T.Check("路径越界被拒", ThrowsManifest(Fx.WithBaseUrl(unsafePath, "http://x/")));
 
@@ -59,9 +66,8 @@ internal static class ManifestStateSuite
         T.Check("渠道内重复 path 被拒", ThrowsManifest(dupJson));
 
         var noSha = "{ \"schema\": 1, \"pack\": {\"name\":\"n\",\"version\":\"v\"}, \"channels\": { " +
-                    "\"std\": {\"label\":\"l\",\"mods\":[{ \"path\": \"mods/X.jar\", \"size\": 1, " +
-                    "\"urls\": [\"http://x\"]}],\"files\":[]}, " +
-                    "\"pfm\": {\"label\":\"l\",\"mods\":[],\"files\":[]}, " +
+                    "\"std\": {\"label\":\"l\",\"mods\":[" + entry.Replace("mods/Dup.jar", "mods/X.jar")
+                        .Replace("\"sha1\": \"" + Fx.Sha1("D") + "\", ", "") + "],\"files\":[]}, " +
                     "\"common\": {\"label\":\"l\",\"mods\":[],\"files\":[]} } }";
         T.Check("缺 sha1 被拒", ThrowsManifest(noSha));
 
@@ -112,9 +118,22 @@ internal static class ManifestStateSuite
 
     private static void NormalizeChannel()
     {
-        T.Check("std/pfm 归一成自身", QlManifest.NormalizeChannel("STD") == "std" &&
-            QlManifest.NormalizeChannel("pfm") == "pfm");
+        T.Check("std 归一成自身", QlManifest.NormalizeChannel("STD") == "std");
+        // 新版不再有 pfm 频道：未知/历史值一律落 common。
+        T.Check("pfm 已无独立频道 → common", QlManifest.NormalizeChannel("pfm") == "common");
         T.Check("未知频道归一 common", QlManifest.NormalizeChannel("xyz") == "common");
+    }
+
+    private static void RpuOwnership()
+    {
+        T.Check("qlrpu/ 前缀归 RPU", QlManifest.IsRpuOwned("qlrpu/cache/current.json"));
+        T.Check("qlrpu 根文件归 RPU", QlManifest.IsRpuOwned("qlrpu/x.json"));
+        T.Check("RPU 设置文件归 RPU", QlManifest.IsRpuOwned("config/qlrpu-client.json"));
+        // 用户口径：resourcepacks 是 mrpack 管的，不再归 RPU。
+        T.Check("resourcepacks 归 mrpack 同步", !QlManifest.IsRpuOwned("resourcepacks/r1.zip"));
+        T.Check("config 其他文件归启动器", !QlManifest.IsRpuOwned("config/create-server.toml"));
+        T.Check("null 不归 RPU", !QlManifest.IsRpuOwned(null));
+        T.Check("反斜杠路径归一后判定", QlManifest.IsRpuOwned("qlrpu\\cache\\current.json"));
     }
 
     private static void StateRoundtrip()
@@ -123,6 +142,9 @@ internal static class ManifestStateSuite
         var state = new QlSyncState
         {
             PackVersion = "26.8.1",
+            PackUrl = "https://example.test/pack.mrpack",
+            OptionalRecorded = true,
+            // 遗留字段照存照读（只读兼容）。
             ManifestUrl = "https://example.test/manifest.json",
             ActiveChannel = "pfm",
         };
@@ -133,8 +155,10 @@ internal static class ManifestStateSuite
 
         var loaded = QlSyncState.Load(dir);
         T.Check("状态回读 packVersion", loaded.PackVersion == "26.8.1");
-        T.Check("状态回读频道", loaded.ActiveChannel == "pfm");
+        T.Check("状态回读 packUrl", loaded.PackUrl == "https://example.test/pack.mrpack");
+        T.Check("状态回读 optionalRecorded", loaded.OptionalRecorded);
         T.Check("状态回读可选组", loaded.IsOptionalEnabled("dh"));
+        T.Check("遗留 manifestUrl 照读", loaded.ManifestUrl == "https://example.test/manifest.json");
         T.Check("tracked 嵌套键值完整",
             loaded.TrackedOf("std")["mods/A.jar"] == "aa" &&
             loaded.TrackedOf("common")["config/x.toml"] == "cc");

@@ -4,18 +4,18 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel MaxWidth="820" HorizontalAlignment="Left">
             <TextBlock Text="设置" Style="{StaticResource PageTitle}"/>
-            <TextBlock Text="只保留够用的：游戏目录、调试入口。其余（内存 / Java）导入 M2 一并接。"
+            <TextBlock Text="只保留够用的：游戏根目录、调试入口。其余（内存 / Java）导入 M2 一并接。"
                        Style="{StaticResource PageHint}" Margin="0,4,0,16"/>
 
             <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                 <StackPanel>
-                    <TextBlock Text="游戏目录" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
+                    <TextBlock Text="游戏根目录" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
                     <TextBlock Style="{StaticResource PageHint}" Margin="0,6,0,8" TextWrapping="Wrap"
-                               Text="轻蓝 QL2 实例所在的根文件夹（含 mods/ 、config/ 的那个目录）。同步、种子导入、启动（M2）都以它为准。"/>
+                               Text="游戏根目录（.minecraft）。启动器只管理其中的 Qinglan-2nd-RPU 实例（版本隔离感知，平铺布局兼容）。同步、启动（M2）都以它为准。"/>
                     <TextBlock x:Name="GameDirText" FontFamily="Consolas" FontSize="13" TextWrapping="Wrap"
                                Foreground="{StaticResource TextPrimary}" Margin="0,0,0,10" Text="（未设置）"/>
                     <WrapPanel>
-                        <Button x:Name="BtnPickDir" Content="选择目录…" Style="{StaticResource BtnGhost}" Click="OnPickDir"/>
+                        <Button x:Name="BtnPickDir" Content="选择根目录…" Style="{StaticResource BtnGhost}" Click="OnPickDir"/>
                         <Button x:Name="BtnOpenDir" Content="打开目录" Style="{StaticResource BtnGhost}" Margin="10,0,0,0"
                                 Click="OnOpenDir"/>
                         <Button x:Name="BtnOpenLog" Content="打开日志文件夹" Style="{StaticResource BtnGhost}"
@@ -28,7 +28,7 @@
                 <StackPanel>
                     <TextBlock Text="关于" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
                     <TextBlock Style="{StaticResource PageHint}" Margin="0,8,0,0" TextWrapping="Wrap"
-                               Text="轻蓝启动器 1.0.0 —— 为「轻蓝 MTR 2.0」社区定制的轻量启动器。&#x0a;同步资源：manifest v1（std 官方包 / pfm 优化包 + 可选组），与旧启动器互通。&#x0a;登录与启动链在 M2 到货；MTR 轨交页、论坛页在 v1.1。"/>
+                               Text="轻蓝启动器 1.0.0 —— 为「轻蓝 MTR 2.0」社区定制的轻量启动器。&#x0a;同步方式：包驱动（.mrpack 即更新源，单一 mods 频道 + 可选组），与 QL-HMCL 新版引擎互通。&#x0a;登录与启动链在 M2 到货；MTR 轨交页、论坛页在 v1.1。"/>
                 </StackPanel>
             </Border>
         </StackPanel>

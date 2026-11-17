@@ -10,17 +10,41 @@ public sealed class ManifestException : Exception
 }
 
 /// <summary>轻蓝整合包的期望远端状态（manifest v1，与 ql-launcher 发布器互通）。</summary>
-/// <para>启动器拿它对账磁盘文件，只做最小动作（下载 / 重命名 / 删除）。</para>
+/// <para>启动器拿它对账磁盘文件，只做最小动作（下载 / 重命名 / 删除）。
+/// 新版方式下 mods 只有一个频道：wire 名保留历史的 <c>std</c> 拼写（与已发布的工具互通），
+/// 历史的 <c>pfm</c> 双频道拆分已移除——一个包要么就是官方包，要么根本不可同步。</para>
 public sealed class QlManifest
 {
     /// <summary>本启动器支持的 schema 版本，必须一致。</summary>
     public const int SchemaVersion = 1;
 
-    /// <summary>拥有独立 mods 文件夹的频道：活跃 = mods，停用 = mods-<name>。</summary>
-    public static readonly string[] ModsChannels = { "std", "pfm" };
+    /// <summary>mods 频道的 wire 名：保留历史拼写 <c>std</c>，但不再有第二个 mods 频道。</summary>
+    public const string ChannelMods = "std";
+
+    /// <summary>拥有独立 mods 文件夹的频道集合；新版只有一个 <see cref="ChannelMods"/>。</summary>
+    public static readonly string[] ModsChannels = { ChannelMods };
 
     /// <summary>共享频道名：文件直接相对游戏目录解析。</summary>
     public const string ChannelCommon = "common";
+
+    /// <summary>游戏内 RPU mod 独占的目录：启动器从不在这里下载、追踪或删除文件。</summary>
+    /// <para><c>qlrpu</c> 是 RPU 客户端自己的仓库（cache/current.json + 加密 cache/objects/*.obj）。
+    /// resourcepacks <b>不在</b>此列：整合包仍然附带若干资源包，照常由 mrpack 同步管理。</para>
+    public static readonly string[] RpuFolders = { "qlrpu" };
+
+    /// <summary>启动器自有目录里仍归 RPU 客户端所有的个别文件（它是自己设置的唯一写入者）。</summary>
+    public static readonly string[] RpuFiles = { "config/qlrpu-client.json" };
+
+    /// <summary>逻辑路径是否属于游戏内 RPU mod 而非启动器。</summary>
+    public static bool IsRpuOwned(string? logicalPath)
+    {
+        if (logicalPath == null) return false;
+        var normalized = logicalPath.Replace('\\', '/');
+        if (RpuFiles.Contains(normalized, StringComparer.Ordinal)) return true;
+        var slash = normalized.IndexOf('/');
+        var segment = slash < 0 ? normalized : normalized[..slash];
+        return RpuFolders.Contains(segment, StringComparer.Ordinal);
+    }
 
     [JsonPropertyName("schema")] public int Schema { get; set; }
     [JsonPropertyName("pack")] public PackInfo? Pack { get; set; }
@@ -115,7 +139,7 @@ public sealed class QlManifest
         return result;
     }
 
-    /// <summary>未知频道名归一成 common。</summary>
+    /// <summary>未知频道名归一成 common（历史的 pfm 也不再有独立频道，同样落 common）。</summary>
     public static string NormalizeChannel(string channel)
         => ModsChannels.Contains(channel.ToLowerInvariant()) ? channel.ToLowerInvariant() : ChannelCommon;
 
@@ -138,7 +162,7 @@ public sealed class QlManifest
         var channels = m.Channels;
         if (channels == null || channels.Count == 0)
             throw new ManifestException("Manifest does not contain channels");
-        foreach (var required in new[] { "std", "pfm", "common" })
+        foreach (var required in new[] { ChannelMods, ChannelCommon })
             if (!channels.ContainsKey(required))
                 throw new ManifestException("Manifest is missing channel " + required);
 

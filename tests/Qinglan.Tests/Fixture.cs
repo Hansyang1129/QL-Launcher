@@ -84,7 +84,18 @@ internal static class Fx
     /// <summary>最小 mrpack：overrides + index 文件（modrinth.index.json 声明 CDN 文件）。</summary>
     public static string BuildMrpack(string outputZip, MiniHttpServer server,
         List<(string Path, string Content)> indexFiles, (string Path, string Content)[] overrideFiles,
-        string mcVersion = "1.20.1", string loader = "0.16.9")
+        string mcVersion = "1.20.1", string loader = "0.16.9", string versionId = "Qinglan-Test 1.0-full")
+    {
+        return BuildMrpackRaw(outputZip, server,
+            indexFiles.Select(f => (f.Path, (byte[])Encoding.UTF8.GetBytes(f.Content))).ToList(),
+            overrideFiles.Select(f => (f.Path, (byte[])Encoding.UTF8.GetBytes(f.Content))).ToArray(),
+            mcVersion, loader, versionId);
+    }
+
+    /// <summary>字节内容版 mrpack 构造（二进制 mod jar 等场景）；BuildMrpack 的底层。</summary>
+    public static string BuildMrpackRaw(string outputZip, MiniHttpServer server,
+        List<(string Path, byte[] Content)> indexFiles, (string Path, byte[] Content)[] overrideFiles,
+        string mcVersion = "1.20.1", string loader = "0.16.9", string versionId = "Qinglan-Test 1.0-full")
     {
         using var zipStream = File.Create(outputZip);
         using var zip = new ZipArchive(zipStream, ZipArchiveMode.Create);
@@ -93,15 +104,15 @@ internal static class Fx
         {
             var e = zip.CreateEntry("overrides/" + path);
             using var w = e.Open();
-            w.Write(Encoding.UTF8.GetBytes(content));
+            w.Write(content);
         }
 
         var filesJson = indexFiles.Select(f =>
             "{ \"path\": \"" + Esc(f.Path) + "\", \"hashes\": { \"sha1\": \"" + Sha1(f.Content) +
             "\" }, \"env\": null, \"downloads\": [\"" + server.BaseUrl + Esc(f.Path) +
-            "\"], \"fileSize\": " + SizeOf(f.Content) + " }");
+            "\"], \"fileSize\": " + f.Content.Length + " }");
         var index =
-            "{ \"formatVersion\": 1, \"game\": \"minecraft\", \"versionId\": \"Qinglan-Test 1.0-full\", " +
+            "{ \"formatVersion\": 1, \"game\": \"minecraft\", \"versionId\": \"" + Esc(versionId) + "\", " +
             "\"name\": \"Qinglan Testseed\", \"files\": [" + string.Join(",", filesJson) + "], " +
             "\"dependencies\": { \"minecraft\": \"" + mcVersion + "\", \"fabric-loader\": \"" + loader + "\" } }";
         var ie = zip.CreateEntry("modrinth.index.json");

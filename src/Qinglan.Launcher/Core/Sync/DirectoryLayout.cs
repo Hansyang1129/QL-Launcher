@@ -4,10 +4,9 @@ using System.Text.Json;
 namespace Qinglan.Launcher.Core;
 
 /// <summary>游戏目录内按频道划分的 mods 文件夹布局。</summary>
-/// <para>每个频道一个文件夹：当前活跃的叫 <c>mods</c>，其余停在 <c>mods-&lt;频道&gt;</c>。
-/// 切频道只做改名，瞬时完成。每个文件夹内置隐藏标记文件（内容=频道名），
-/// 于是即使没有任何启动器状态，磁盘也能自证哪个频道在活跃。频道切换的两次改
-/// 名之间可以被打断，这里提供两种半僵尸状态的恢复。</para>
+/// <para>历史上每个频道一个文件夹（活跃 = <c>mods</c>，其余停在 <c>mods-&lt;频道&gt;</c>）。
+/// 新版方式只剩单一 mods 频道（wire 名 std），不再发生频道切换；保留布局工具是为了
+/// 治愈旧双频道时代留下的目录形态，并让「磁盘自证活跃频道」的标记机制继续可用。</para>
 public static class QlDirectoryLayout
 {
     /// <summary>游戏正在加载的 folder 名。</summary>
@@ -110,42 +109,6 @@ public static class QlDirectoryLayout
 
         Directory.CreateDirectory(active);
         StampChannel(active, activeChannel);
-    }
-
-    /// <summary>切活跃频道：只改文件夹名并盖标记。</summary>
-    public static void SwitchChannel(string gameDir, string from, string to)
-    {
-        if (from.Equals(to, StringComparison.Ordinal)) return;
-
-        var active = Path.Combine(gameDir, ActiveModsFolder);
-        var parkedFrom = Path.Combine(gameDir, ParkedFolderName(from));
-        var parkedTo = Path.Combine(gameDir, ParkedFolderName(to));
-
-        Directory.CreateDirectory(active);
-
-        // 1. 把当前 active folder 收进它自己的频道名下。
-        if (!IsSamePath(active, parkedFrom))
-        {
-            MoveDirectory(active, parkedFrom);
-            StampChannel(parkedFrom, from);
-        }
-
-        // 2. 抬升目标频道 folder；没有就建空的（sync 引擎随后填内容）。
-        if (Directory.Exists(parkedTo))
-        {
-            MoveDirectory(parkedTo, active);
-            StampChannel(active, to);
-        }
-        else if (!Directory.Exists(active))
-        {
-            Directory.CreateDirectory(active);
-            StampChannel(active, to);
-        }
-        else if (IsSamePath(parkedFrom, active))
-        {
-            // parkedFrom==active 改名失败才可能走进来：保留 folder，只换标记。
-            StampChannel(active, to);
-        }
     }
 
     private static bool HasAnyParkedFolder(string gameDir)

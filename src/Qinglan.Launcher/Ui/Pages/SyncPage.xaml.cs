@@ -1,75 +1,102 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Threading;
 using Qinglan.Launcher.Core;
-using Qinglan.Launcher.Core.Net;
 
 namespace Qinglan.Launcher.Ui.Pages;
 
-/// <summary>轻蓝同步页。语义对齐 HMCL-QL 的 QLSyncPage：查更新（fetch+analyze）→ 应用（sync），
-/// 页面再现即刷新实例状态并锁应用（M13/M14）；种子导入 = mrpack 安装 + seedize（阶段2 链）。</summary>
+/// <summary>轻蓝同步页。语义对齐 QL-HMCL 新版 QLSyncPage：更新源就是整合包自己的
+/// .mrpack（现场挑选，或实例内 .ql-pack 缓存最新包）；查更新 = 读包版本 + 可选组，
+/// 应用 = QlPackSync.Sync。实例固定为游戏根目录下的 Qinglan-2nd-RPU（版本隔离感知），
+/// 只有携带 RPU mod 的实例允许更新；RPU 区域暂留半空。</summary>
 public partial class SyncPage : UserControl
 {
     private QlConfig _config = new();
     private QlSyncState? _state;
-    private QlManifest? _fetched;
-    private string? _manifestSourceUrl;
-    private CancellationTokenSource? _cts;
+    private string? _gameRoot;
+    private string? _runDir;
+    private bool _syncable;
+    private string? _pickedPack;
     private bool _busy;
 
     public SyncPage()
     {
         InitializeComponent();
-        // M14 同效：URL 一动，已抓的 manifest 就作废，应用键锁住。
-        ManifestUrlBox.TextChanged += (_, _) =>
-        {
-            if (!_busy) ResetFlow();
-        };
         Loaded += (_, _) => _ = RefreshInstanceAsync();
-    }
-
-    /// <summary>页面每次挂到树上都重读实例（缓存页复用，Loaded 会再次触发）。</summary>
-    protected override void OnInitialized(EventArgs e)
-    {
-        // Loaded 挂接在构造函数里完成；这里保留覆写点即可。
-        base.OnInitialized(e);
     }
 
     // ─────────────────────────── 实例状态 ───────────────────────────
 
+    /// <summary>页面每次挂到树上都重读实例（缓存页复用，Loaded 会再次触发）：
+    /// 用户可能改过游戏根目录，陈旧的提示会把更新灌进错误的实例。</summary>
     private async Task RefreshInstanceAsync()
     {
         _config = QlConfig.Load(App.DataDir);
-        var dir = _config.GameDir;
+        _gameRoot = _config.GameDir;
+        _pickedPack = null;
+        PackPathBox.Text = "";
 
-        if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+        if (string.IsNullOrWhiteSpace(_gameRoot) || !Directory.Exists(_gameRoot))
         {
             _config.GameDir = null;
-            InstanceTitle.Text = "未选择游戏目录";
-            InstanceDetail.Text = "先指定 QL2 实例目录（含 mods/ 的那个文件夹），再开始同步。";
+            _gameRoot = null;
+            _runDir = null;
+            _syncable = false;
+            InstanceTitle.Text = "未选择游戏根目录";
+            InstanceDetail.Text = "先指定游戏根目录（.minecraft），启动器只管理其中的 Qinglan-2nd-RPU 实例（版本隔离）。";
+            PackInfoLabel.Text = "";
+            ApplyGate();
             ResetFlow();
             return;
         }
 
-        InstanceTitle.Text = dir;
-        _state = QlSyncState.Load(dir);
-        var marker = QlDirectoryLayout.DetectActiveChannel(dir, _state.ActiveChannel);
-        var channel = marker ?? _state.ActiveChannel;
-        InstanceDetail.Text = $"整合包版本 {_state.PackVersion ?? "（尚未同步）"} · 频道 {channel}";
+        _runDir = QlInstances.ResolveRunDir(_gameRoot);
+        if (_runDir == null)
+        {
+            _syncable = false;
+            InstanceTitle.Text = "找不到 Qinglan-2nd-RPU 实例";
+            InstanceDetail.Text = _gameRoot + " 里没有 versions\\Qinglan-2nd-RPU，" +
+                                  "也不像平铺的实例目录（缺 mods/ 与 QL 状态标记）。";
+            PackInfoLabel.Text = "";
+            ApplyGate();
+            ResetFlow();
+            return;
+        }
 
-        ManifestUrlBox.Text = string.IsNullOrWhiteSpace(_state.ManifestUrl)
-            ? QlConstants.DefaultManifestUrl
-            : _state.ManifestUrl;
+        var isolated = QlInstances.IsIsolatedLayout(_gameRoot);
+        InstanceTitle.Text = isolated ? "Qinglan-2nd-RPU（版本隔离）" : "Qinglan-2nd-RPU（平铺）";
+        InstanceDetail.Text = _runDir;
+        _state = QlSyncState.Load(_runDir);
+
+        var rpuMod = QlPackGuard.FindRpuMod(_runDir);
+        _syncable = rpuMod != null;
+        if (_syncable)
+            InstanceDetail.Text += "\nRPU mod: " + rpuMod;
+        PackInfoLabel.Text = string.IsNullOrWhiteSpace(_state.PackUrl)
+            ? ""
+            : "已记录更新源：" + _state.PackUrl;
+        ApplyGate();
         ResetFlow();
         await Task.CompletedTask;
     }
 
+    /// <summary>只有包自己的实例（mods 里有 RPU mod）允许更新；其余给解释而非半坏页面。</summary>
+    private void ApplyGate()
+    {
+        if (_runDir == null)
+        {
+            GateLabel.Visibility = Visibility.Collapsed;
+            return;
+        }
+        GateLabel.Text = _syncable
+            ? ""
+            : "该实例没有启用中的 RPU mod（qinglanrpuclient），不属于整合包管理范围，同步已锁定。";
+        GateLabel.Visibility = _syncable ? Visibility.Collapsed : Visibility.Visible;
+        if (!_syncable) ResetFlow();
+    }
+
     private void ResetFlow()
     {
-        _fetched = null;
-        _manifestSourceUrl = null;
         OptionalHost.Children.Clear();
         OptionalTitle.Visibility = Visibility.Collapsed;
         BtnApply.IsEnabled = false;
@@ -77,7 +104,7 @@ public partial class SyncPage : UserControl
         SyncBar.Visibility = Visibility.Collapsed;
     }
 
-    // ─────────────────────────── 目录与 URL ───────────────────────────
+    // ─────────────────────────── 目录与包源 ───────────────────────────
 
     private void OnPickGameDir(object sender, RoutedEventArgs e)
     {
@@ -90,46 +117,99 @@ public partial class SyncPage : UserControl
         }
         catch (Exception ex)
         {
-            Globals.Log("游戏目录保存失败: " + ex.Message);
+            Globals.Log("游戏根目录保存失败: " + ex.Message);
         }
         _ = RefreshInstanceAsync();
     }
 
-    private void OnResetUrl(object sender, RoutedEventArgs e)
-        => ManifestUrlBox.Text = QlConstants.DefaultManifestUrl;
+    /// <summary>本页使用的包文件：现场挑的优先，其次实例内 .ql-pack 缓存里最新的 .mrpack。
+    /// 构建里不烘任何远端地址。</summary>
+    private string? SelectedPack()
+    {
+        if (_pickedPack != null) return _pickedPack;
+        var dir = _runDir;
+        if (dir == null) return null;
+        var cache = Path.Combine(dir, QlPackSync.CacheDir);
+        if (!Directory.Exists(cache)) return null;
+        try
+        {
+            return Directory.EnumerateFiles(cache, "*.mrpack", SearchOption.TopDirectoryOnly)
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+        }
+        catch (IOException e)
+        {
+            Globals.Log("包缓存列不动: " + cache + " -> " + e.Message);
+            return null;
+        }
+    }
 
-    // ─────────────────────────── 查更新（fetch + analyze） ───────────────────────────
+    private void OnPickPack(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        var path = Pickers.Mrpack(Window.GetWindow(this));
+        if (path is null) return;
+        _pickedPack = path;
+        PackPathBox.Text = path;
+        SyncResult.Text = "";
+        _ = CheckPackUpdateAsync();
+    }
+
+    // ─────────────────────────── 查更新 ───────────────────────────
 
     private async void OnCheckUpdate(object sender, RoutedEventArgs e)
     {
-        if (_busy || !RequireGameDir()) return;
-        var dir = _config.GameDir!;
-        var url = EffectiveUrl();
+        if (_busy || _runDir == null)
+        {
+            if (_runDir == null)
+                SyncResult.Text = "先「选择游戏根目录…」定位 Qinglan-2nd-RPU 实例。";
+            return;
+        }
 
-        SetBusy(true, indeterminate: true);
-        SyncResult.Text = "正在拉取 manifest…";
+        var pack = SelectedPack();
+        if (pack == null)
+        {
+            // HMCL 同款：没有包就现场挑，不空转报错。
+            OnPickPack(sender, e);
+            return;
+        }
+
+        await CheckPackUpdateAsync();
+    }
+
+    /// <summary>读所选包并对照实例状态：版本差距 + 可选组勾选（对齐 QL-HMCL checkPackUpdate）。</summary>
+    private async Task CheckPackUpdateAsync()
+    {
+        if (_busy || _runDir == null) return;
+        var dir = _runDir;
+        var pack = SelectedPack();
+        if (pack == null) return;
+
+        SetBusy(true);
+        SyncResult.Text = "正在读取整合包…";
         try
         {
-            var manifest = await Task.Run(() => QlManifestFetcher.FetchAsync(url)).ConfigureAwait(true);
-            _fetched = manifest;
-            _manifestSourceUrl = url;
-            BuildOptionalCheckboxes(manifest);
+            var current = await Task.Run(() =>
+            {
+                var version = QlPackSync.ReadPackVersion(pack);
+                var groups = QlPackSync.OptionalGroups(pack);
+                var state = QlSyncState.Load(dir);
+                return (Version: version, Groups: groups, State: state);
+            }).ConfigureAwait(true);
 
-            SyncResult.Text = "正在对账文件（SHA-1）…";
-            var state = _state!;
-            var channel = SelectedChannel();
-            var toggles = CollectedToggles();
-            var analysis = await Task.Run(() =>
-                QlSyncManager.Analyze(dir, manifest, channel, toggles)).ConfigureAwait(true);
+            _state = current.State;
+            var now = current.State.PackVersion is { Length: > 0 } v ? v : "?";
+            PackInfoLabel.Text = $"当前实例 {now} → 包 {current.Version}";
 
+            BuildOptionalCheckboxes(current.Groups);
+
+            SyncResult.Text = now.Equals(current.Version, StringComparison.Ordinal)
+                ? $"已是最新：{current.Version}（无需操作）。"
+                : "可应用同步。注意：可选组勾选即刻生效（停用的 mod 会在应用时停成 .disabled）";
             BtnApply.IsEnabled = true;
-            SyncResult.Text = analysis.IsIdle
-                ? $"已是最新：{manifest.PackNameOrDefault()} {manifest.PackVersionOrDefault()}（无需操作）。"
-                : DescribeAnalysis(manifest, analysis);
         }
         catch (Exception ex)
         {
-            _fetched = null;
             BtnApply.IsEnabled = false;
             Globals.Log("查更新失败: " + ex);
             SyncResult.Text = "查更新失败：" + FriendlyMessage(ex);
@@ -140,43 +220,26 @@ public partial class SyncPage : UserControl
         }
     }
 
-    private string DescribeAnalysis(QlManifest manifest, QlSyncAnalysis a)
-    {
-        var lines = new List<string>
-        {
-            $"对照 {manifest.PackNameOrDefault()} {manifest.PackVersionOrDefault()}：",
-        };
-        if (a.ChannelSwitchPending)
-            lines.Add($"· 频道切换 {a.FromChannel} → {a.ToChannel}");
-        if (a.NeedDownload.Count > 0)
-            lines.Add($"· 需下载 {a.NeedDownload.Count} 个文件");
-        if (a.RenamesPending > 0)
-            lines.Add($"· 将重命名 {a.RenamesPending} 个（可选组开关的改名，免下载）");
-        if (a.DeletesPending > 0)
-            lines.Add($"· 将清理 {a.DeletesPending} 个旧文件");
-        return string.Join("\n", lines);
-    }
-
     // ─────────────────────────── 应用同步 ───────────────────────────
 
     private async void OnApply(object sender, RoutedEventArgs e)
     {
-        if (_busy || !RequireGameDir() || _fetched is null) return;
-        var dir = _config.GameDir!;
-        var manifest = _fetched;
-        var url = _manifestSourceUrl ?? EffectiveUrl();
-        var channel = SelectedChannel();
-        var toggles = CollectedToggles();
-        await RunSyncAsync(dir, manifest, channel, toggles, url);
-    }
+        if (_busy || _runDir == null || !_syncable)
+        {
+            if (_runDir != null && !_syncable)
+                SyncResult.Text = "该实例没有启用中的 RPU mod（qinglanrpuclient），不属于整合包管理范围。";
+            return;
+        }
+        var dir = _runDir;
+        var pack = SelectedPack();
+        if (pack == null)
+        {
+            SyncResult.Text = "先「浏览…」选择 .mrpack 整合包。";
+            return;
+        }
 
-    private async Task RunSyncAsync(string dir, QlManifest manifest, string channel,
-        Dictionary<string, bool>? toggles, string? url)
-    {
         SetBusy(true);
         SyncResult.Text = "正在同步…";
-        var cts = new CancellationTokenSource();
-        _cts = cts;
         try
         {
             var progress = new Progress<(int Finished, int Total)>(p =>
@@ -189,34 +252,22 @@ public partial class SyncPage : UserControl
                 }
             });
             var outcome = await Task.Run(() =>
-                QlSyncManager.Sync(dir, manifest, channel, toggles,
-                    (f, t) => ((IProgress<(int, int)>)progress).Report((f, t)),
-                    cts.Token, url)).ConfigureAwait(true);
+                QlPackSync.Sync(dir, pack, null,
+                    (f, t) => ((IProgress<(int, int)>)progress).Report((f, t)))).ConfigureAwait(true);
 
-            if (outcome.Canceled)
+            var summary =
+                $"同步完成：下载 {outcome.Downloaded} · 未变 {outcome.Unchanged}" +
+                (outcome.Renamed > 0 ? $" · 重命名 {outcome.Renamed}" : "") +
+                (outcome.Deleted > 0 ? $" · 清理 {outcome.Deleted}" : "");
+            if (outcome.HandedOver > 0)
+                summary += $"\n交接给游戏内 RPU 客户端 {outcome.HandedOver} 个文件（不删）";
+            if (outcome.FailedPaths.Count > 0)
             {
-                SyncResult.Text = "已取消（部分文件可能已就位，下次查更新会对账）。";
+                var shown = string.Join("、", outcome.FailedPaths.Take(5));
+                var more = outcome.FailedPaths.Count > 5 ? " 等" : "";
+                summary += $"\n部分失败（{outcome.Failed} 个）：{shown}{more}。修好网络后再点一次「应用同步」即可续传补齐。";
             }
-            else if (outcome.FailedFiles.Count > 0)
-            {
-                var shown = string.Join("、", outcome.FailedFiles.Take(5));
-                var more = outcome.FailedFiles.Count > 5 ? " 等" : "";
-                SyncResult.Text =
-                    $"部分失败：下载 {outcome.Downloaded} 个 · {shown}{more}（共 {outcome.FailedFiles.Count} 个）。\n" +
-                    "可以是网络问题（服务器/CDN 抖动）；修好网络后再点一次「应用同步」即可续传补齐。";
-            }
-            else
-            {
-                SyncResult.Text =
-                    $"同步完成：下载 {outcome.Downloaded} · 未变 {outcome.Unchanged}" +
-                    (outcome.Renamed > 0 ? $" · 重命名 {outcome.Renamed}" : "") +
-                    (outcome.Deleted > 0 ? $" · 清理 {outcome.Deleted}" : "") +
-                    $" → {outcome.PackVersion}";
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            SyncResult.Text = "已取消。";
+            SyncResult.Text = summary;
         }
         catch (Exception ex)
         {
@@ -225,133 +276,37 @@ public partial class SyncPage : UserControl
         }
         finally
         {
-            if (_cts == cts) _cts = null;
-            cts.Dispose();
             SetBusy(false);
             await RefreshInstanceAsync().ConfigureAwait(true);
         }
     }
 
-    private void OnCancel(object sender, RoutedEventArgs e) => _cts?.Cancel();
+    // ─────────────────────────── 可选组 ───────────────────────────
 
-    // ─────────────────────────── 种子导入 ───────────────────────────
-
-    private void OnSeedBrowse(object sender, RoutedEventArgs e)
+    /// <summary>勾选即落盘（对齐 HMCL toggleOptionalGroup）：下次应用时停用/还原对应 mod。</summary>
+    private void OnOptionalToggle(object sender, RoutedEventArgs e)
     {
-        var path = Pickers.Mrpack(Window.GetWindow(this));
-        if (path is null) return;
-        SeedPathBox.Text = path;
-        BtnSeedImport.IsEnabled = true;
-        SeedStatus.Text = "";
-    }
-
-    private async void OnSeedImport(object sender, RoutedEventArgs e)
-    {
-        if (_busy) return;
-        var dir = _config.GameDir;
-        if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+        if (sender is not CheckBox { Tag: string group } cb) return;
+        var state = _state;
+        var dir = _runDir;
+        if (state == null || dir == null) return;
+        state.SetOptionalEnabled(group, cb.IsChecked == true);
+        _ = Task.Run(() =>
         {
-            SeedStatus.Text = "先「选择目录…」指定 QL2 实例目录。";
-            return;
-        }
-        var mrpack = SeedPathBox.Text.Trim();
-        if (mrpack.Length == 0 || !File.Exists(mrpack))
-        {
-            SeedStatus.Text = "先「浏览…」选择 .mrpack 种子包。";
-            return;
-        }
-
-        SetBusy(true, seedFlow: true);
-        SeedBar.Visibility = Visibility.Visible;
-        SeedBar.IsIndeterminate = false;
-        try
-        {
-            var head = await Task.Run(() => QlSeedImporter.ReadHead(mrpack)).ConfigureAwait(true);
-            SeedStatus.Text =
-                $"正在安装「{head.Name} {QlSeedImporter.NormalizeVersionId(head.VersionId)}」" +
-                (head.Minecraft is null ? "" : $"（MC {head.Minecraft} · fabric {head.FabricLoader}）") + "…";
-            await Task.Delay(50); // 让状态先渲染
-
-            var install = await Task.Run(() =>
-                QlSeedImporter.InstallMrpackAsync(mrpack, dir,
-                    SeedListener(), CancellationToken.None)).ConfigureAwait(true);
-
-            var manifestUrl = string.IsNullOrWhiteSpace(ManifestUrlBox.Text)
-                ? QlConstants.DefaultManifestUrl
-                : ManifestUrlBox.Text.Trim();
-            var manifest = await Task.Run(() => QlManifestFetcher.FetchAsync(manifestUrl)).ConfigureAwait(true);
-
-            SeedStatus.Text = "正在 QL 化（对账 + 布局盖章）…";
-            await Task.Delay(50);
-
-            var seeded = await Task.Run(() =>
-                QlSeedImporter.Seedize(dir, manifest, manifestUrl,
-                    targetChannel: "std",
-                    optionalExtras: null,
-                    listener: SeedListener(),
-                    CancellationToken.None)).ConfigureAwait(true);
-
-            SeedStatus.Text =
-                $"导入完成：{install.OverridesCopied} 个整合包文件 + {install.FilesDownloaded} 个外部文件落地，" +
-                $"种子对账 seeded {seeded.Seeded} · 缺件 {seeded.Missing} · 不匹配 {seeded.Mismatch}。" +
-                (seeded.Missing > 0 || seeded.Mismatch > 0
-                    ? "点「查更新」→「应用同步」补齐缺件即可入坑。"
-                    : "整包已就位，可启动。");
-            await RefreshInstanceAsync().ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            Globals.Log("种子导入失败: " + ex);
-            SeedStatus.Text = "导入失败：" + FriendlyMessage(ex);
-        }
-        finally
-        {
-            SetBusy(false, seedFlow: true);
-        }
-    }
-
-    /// <summary>种子导入进度桥：引擎在后台线程回调，这里投回 UI 线程改进度条。</summary>
-    private Action<int, int> SeedListener() => (f, t) =>
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
-        {
-            if (t <= 0) return;
-            SeedBar.Visibility = Visibility.Visible;
-            SeedBar.IsIndeterminate = false;
-            SeedBar.Value = Math.Min(100, 100.0 * f / t);
+            try
+            {
+                state.Save(dir);
+            }
+            catch (IOException ex)
+            {
+                Globals.Log("可选组状态保存失败: " + ex.Message);
+            }
         });
-
-    // ─────────────────────────── 杂项 ───────────────────────────
-
-    private bool RequireGameDir()
-    {
-        if (!string.IsNullOrWhiteSpace(_config.GameDir)) return true;
-        SyncResult.Text = "先「选择目录…」指定 QL2 实例目录。";
-        return false;
     }
 
-    private string EffectiveUrl()
-    {
-        var url = ManifestUrlBox.Text.Trim();
-        return url.Length > 0 ? url : QlConstants.DefaultManifestUrl;
-    }
-
-    private string SelectedChannel() => ChannelPfm.IsChecked == true ? "pfm" : "std";
-
-    /// <summary>读可选组勾选；没有勾选界面（未拉 manifest）时返回 null，语义=沿用状态文件。</summary>
-    private Dictionary<string, bool>? CollectedToggles()
-    {
-        if (OptionalHost.Children.Count == 0) return null;
-        var toggles = new Dictionary<string, bool>(StringComparer.Ordinal);
-        foreach (var child in OptionalHost.Children)
-            if (child is CheckBox { Tag: string group } cb)
-                toggles[group] = cb.IsChecked == true;
-        return toggles;
-    }
-
-    private void BuildOptionalCheckboxes(QlManifest manifest)
+    private void BuildOptionalCheckboxes(IReadOnlyList<string> groups)
     {
         OptionalHost.Children.Clear();
-        var groups = manifest.OptionalGroups();
         if (groups.Count == 0)
         {
             OptionalTitle.Visibility = Visibility.Collapsed;
@@ -368,23 +323,20 @@ public partial class SyncPage : UserControl
                 Style = (Style)FindResource("OptionCheck"),
                 Margin = new Thickness(0, 2, 0, 2),
             };
+            cb.Checked += OnOptionalToggle;
+            cb.Unchecked += OnOptionalToggle;
             OptionalHost.Children.Add(cb);
         }
     }
 
-    private void SetBusy(bool busy, bool indeterminate = false, bool seedFlow = false)
+    // ─────────────────────────── 杂项 ───────────────────────────
+
+    private void SetBusy(bool busy)
     {
         _busy = busy;
         BtnCheck.IsEnabled = !busy;
-        BtnSeedBrowse.IsEnabled = !busy;
-        BtnSeedImport.IsEnabled = !busy && SeedPathBox.Text.Trim().Length > 0;
-        BtnApply.IsEnabled = !busy && _fetched is not null;
-        BtnCancel.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
-        if (!seedFlow)
-        {
-            SyncBar.Visibility = busy || indeterminate ? Visibility.Visible : Visibility.Collapsed;
-            SyncBar.IsIndeterminate = busy && indeterminate;
-        }
+        BtnPackBrowse.IsEnabled = !busy;
+        BtnApply.IsEnabled = !busy && _syncable && SelectedPack() != null;
         MainWindow.Instance.SetStatus(busy ? "轻蓝同步进行中…" : "准备就绪");
     }
 

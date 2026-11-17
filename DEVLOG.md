@@ -152,3 +152,39 @@
   客户端形状/重试/错误文案、引擎端到端（假服务器四轮：全量下载→零下载+本地快照→陈旧清理→
   篡改自愈）。构建 0 错 0 警。
   下一步：M2b-2 UI 接线 → M3 状态页 → M4 发布；RPU 的 UI 挂点（同步页内嵌 RPU 进度）待 M2b-2 一并接。
+- **2026-11-17 对接 QL-HMCL 新版同步（包驱动引擎）**：同步栈按 QL-HMCL fork 新版引擎整体重写
+  （地面真相全读：QLPackSync/QLSyncState/QLConstants/QLManifest(Tool)/QLDirectoryLayout/
+  QLDblPack/QLPackGuard/QLInstances/ui.QLSyncPage）。范式变更：**没有 manifest 服务器**——
+  fork 里 `DEFAULT_MANIFEST_URL=""`（files.example.com 占位从未上线，假 URL 输入框删除）；
+  更新源 = 整合包自己的 `.mrpack`（同步页现场挑文件，否则回落实例 `.ql-pack/` 缓存最新包，
+  构建里不烘任何远端地址）。新组件：`Mrpack.cs`（索引模型/ReadHead/版本归一剥 `-full`）、
+  `MrpackManifest.cs`（buildFromMrpack 移植：`mods/**`→std 单频道；`config|shaderpacks|
+  resourcepacks/**`+`options.txt`→common；`PCL/`、`servers.dat`、`modrinth.index.json` 跳过；
+  `fabric-loader-*`/`fabric-api*` 排除；可选组按文件名 voxy/dh/axiom 且只有 mod 进组；
+  index 覆盖 overrides；sha1 门 = 40 位长度，Java 精确不查字符集）、`PackSync.cs`（overrides
+  载荷优先直写零网络 → URL 候选序（CDN 在前、发布器兜底 URL 垫底，与 Java 字节对齐）；
+  `.qlimport` 临时 + 原子替换；SHA-1 复验错删；plain↔`.disabled` 姊妹收养；purge 只清计划外；
+  RPU 遗留 = handedOver 交接不删；**部分失败状态照记**（Java 同款，失败件下轮重规划）；
+  dblpack 兜底重生成）、`PackGuard.cs`（mods 里 qinglanrpuclient 门禁，停用副本不算）、
+  `Instances.cs`（只管 `Qinglan-2nd-RPU`：版本隔离目录优先，平铺实例兼容）。状态文件新增
+  `packUrl`（null=重新挑包；空白归一 null；传 null 保留已记录值）与 `optionalRecorded`
+  （全新实例随包全启用，记录后缺席组=用户主动停用）；`manifestUrl`/`activeChannel` 只读兼容。
+  删除 `SeedImporter`/`ManifestFetcher`/`SyncManager` 与 `SwitchChannel`（pfm 双频道时代终结，
+  pfm 标记失效、遗迹不抬升原地保留）；种子导入并入包应用（overrides 优先写即全新安装）。
+  归属口径（用户拍板）：**resourcepacks/shaderpacks/config/mods 全部 mrpack 管，
+  `qlrpu/`+`config/qlrpu-client.json` 归 RPU**。同步页 UI 重写：游戏根目录选择 + 实例卡
+  （版本隔离/平铺标签 + RPU mod 门禁提示，无 mod 锁应用）+ 包浏览/`.ql-pack` 回落 +
+  查更新（读版本差 + 可选组勾选即落盘）+ 应用（进度条/分账摘要/失败续传提示）；
+  RPU 半空占位卡（预留：更新状态·发布清单·手动刷新）；设置页措辞改「游戏根目录」。
+  Java quirk 保真两枚：① 停用全部可选组时记录回落随包状态（`enabledGroups` 空 → allGroups
+  fallback，QLPackSync 逐字对齐，下一轮按启用计划收养还原）；② 进度 total = planned+tracked
+  双计、清理循环遇 plannedPaths 直接 continue 不推进 finished——幂等轮 finished 停在计划数。
+  测试 **390/390 全绿**（+11）：SyncScenariosSuite 重写（FULL 全新应用/幂等/停用-还原/packUrl
+  三态/进度/双组停一部分/清除/RPU 交接/LITE 部分失败续跑）、ManifestStateSuite（单 std 必需、
+  pfm-only 拒、RPU 归属、新字段往返）、LayoutSuite（pfm 标记失效）、新 PackDblpackSuite
+  （路由表/overrides 优先零网络/index 下载/dblpack 元数据/ReadHead/坏包容忍）替换
+  SeedDblpackSuite。测试坑两枚：夹具可选组文件名必须真含 distant+horizon（按名识别）；
+  overrides 按条目名排序遍历（Java 同序），可选组顺序是 ASCII 排序序而非声明序。
+  截图 `ql-tmp/sync-page.png`：实例卡「Qinglan-2nd-RPU（平铺）」+ RPU mod 门禁在位 +
+  包卡 + RPU 占位，假 URL 框/频道切换/取消键全部消失。构建 0 错 0 警。
+  下一步：真包在 <gameDir> 实例现场跑一轮同步实测 → M2b-2 UI 接线 → M3 状态页 → M4 发布。

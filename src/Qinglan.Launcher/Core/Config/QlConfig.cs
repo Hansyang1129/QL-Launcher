@@ -4,7 +4,10 @@ namespace Qinglan.Launcher.Core;
 /// <para>容忍损坏——读不动给默认值，绝不能一个坏配置烧坏启动器（与同步状态同款纪律）。</para>
 public sealed class QlConfig
 {
-    /// <summary>QL2 实例的游戏目录（含 mods/ 的根文件夹）。</summary>
+    /// <summary>游戏根目录（.minecraft 或等价的根文件夹）。</summary>
+    /// <para>受管实例固定是根目录下的 <c>versions\Qinglan-2nd-RPU</c>（版本隔离）；
+    /// 根目录自身就是实例运行目录（含 mods/ 或 QL 状态标记）的平铺布局也兼容。
+    /// 解析规则见 <see cref="QlInstances.ResolveRunDir"/>。</para>
     [JsonPropertyName("gameDir")] public string? GameDir { get; set; }
 
     /// <summary>手工指定的 Java（bin 上级目录）；空 = 自动探测。</summary>

@@ -2,7 +2,8 @@ using Qinglan.Launcher.Core;
 
 namespace Qinglan.Tests;
 
-/// <summary>目录布局：标记读写、换名、recover 分支、switch 语义。</summary>
+/// <summary>目录布局：标记读写、recover 分支；新版只剩单一 mods 频道（wire 名 std），
+/// 历史 pfm 遗迹按「无效标记、不抬升」处理。</summary>
 internal static class LayoutSuite
 {
     public static void Run()
@@ -10,15 +11,14 @@ internal static class LayoutSuite
         T.Group("频道标记");
         MarkerRoundtrip();
         BadMarkerIsNull();
+        LegacyPfmMarkerIsNull();
 
-        T.Group("recover 四分支");
+        T.Group("recover 分支");
         RecoverHealsSimple();
         RecoverTrustsDiskMarker();
         RecoverPromotesParked();
-        RecoverInterruptedSwitch();
-
-        T.Group("switchChannel");
-        SwitchRoundTrip();
+        RecoverIgnoresLegacyPfmPark();
+        RecoverCreatesWhenNothing();
     }
 
     private static string FreshLayout(out string gameDir)
@@ -33,9 +33,9 @@ internal static class LayoutSuite
         var dir = Fx.TempDir();
         var mods = Path.Combine(dir, "mods");
         Directory.CreateDirectory(mods);
-        QlDirectoryLayout.StampChannel(mods, "pfm");
-        T.Check("标记写出可读", QlDirectoryLayout.ReadChannelMarker(mods) == "pfm");
-        T.Check("识别活跃频道 fallback 命中", QlDirectoryLayout.DetectActiveChannel(dir, "std") == "pfm");
+        QlDirectoryLayout.StampChannel(mods, "std");
+        T.Check("标记写出可读", QlDirectoryLayout.ReadChannelMarker(mods) == "std");
+        T.Check("识别活跃频道 fallback 命中", QlDirectoryLayout.DetectActiveChannel(dir, "std") == "std");
     }
 
     private static void BadMarkerIsNull()
@@ -45,6 +45,16 @@ internal static class LayoutSuite
         Directory.CreateDirectory(mods);
         File.WriteAllText(Path.Combine(mods, QlDirectoryLayout.ChannelMarker), "nonsense");
         T.Check("乱值标记视为无标记", QlDirectoryLayout.ReadChannelMarker(mods) == null);
+    }
+
+    private static void LegacyPfmMarkerIsNull()
+    {
+        var dir = Fx.TempDir();
+        var mods = Path.Combine(dir, "mods");
+        Directory.CreateDirectory(mods);
+        QlDirectoryLayout.StampChannel(mods, "pfm");
+        // 新版只有一个 mods 频道：pfm 不再是合法标记值。
+        T.Check("pfm 标记失效（单频道时代）", QlDirectoryLayout.ReadChannelMarker(mods) == null);
     }
 
     private static void RecoverHealsSimple()
@@ -67,7 +77,7 @@ internal static class LayoutSuite
         QlDirectoryLayout.StampChannel(mods, "std");
         Directory.CreateDirectory(Path.Combine(dir, "mods-std"));
         QlDirectoryLayout.StampChannel(Path.Combine(dir, "mods-std"), "std");
-        // 记录 pfm 但磁盘盖的是 std：磁盘赢
+        // 记录是历史遗留值（pfm 已不合法，落回 std），磁盘盖的是 std：磁盘赢。
         QlDirectoryLayout.Recover(dir, "pfm");
         T.Check("磁盘标记赢过记录", QlDirectoryLayout.ReadChannelMarker(mods) == "std");
     }
@@ -84,33 +94,29 @@ internal static class LayoutSuite
             QlDirectoryLayout.ReadChannelMarker(Path.Combine(dir, "mods")) == "std");
     }
 
-    private static void RecoverInterruptedSwitch()
+    private static void RecoverIgnoresLegacyPfmPark()
     {
         var dir = Fx.TempDir();
+        // 双频道时代的遗迹：mods 没了，mods-pfm 带着已失效的 pfm 标记。
+        // 新版不再有 pfm 频道：既不抬升它，也绝不把它当内容源。
         Directory.CreateDirectory(Path.Combine(dir, "mods-pfm"));
         QlDirectoryLayout.StampChannel(Path.Combine(dir, "mods-pfm"), "pfm");
-        // 第一次改名(记 std→pfm 的 middle)后 mods 已迁走，mods-pfm 带标记停在原地
+        File.WriteAllText(Path.Combine(dir, "mods-pfm", "legacy.jar"), "old");
         QlDirectoryLayout.Recover(dir, "pfm");
-        T.Check("中断切换补第二次改名", Directory.Exists(Path.Combine(dir, "mods")) &&
-            QlDirectoryLayout.ReadChannelMarker(Path.Combine(dir, "mods")) == "pfm");
+        T.Check("pfm 遗迹不被抬升：mods 新建",
+            Directory.Exists(Path.Combine(dir, "mods")));
+        T.Check("pfm 遗迹不被抬升：mods 盖 std 标记",
+            QlDirectoryLayout.ReadChannelMarker(Path.Combine(dir, "mods")) == "std");
+        T.Check("pfm 遗迹原地保留（不删）", Directory.Exists(Path.Combine(dir, "mods-pfm")) &&
+            File.Exists(Path.Combine(dir, "mods-pfm", "legacy.jar")));
     }
 
-    private static void SwitchRoundTrip()
+    private static void RecoverCreatesWhenNothing()
     {
         var dir = Fx.TempDir();
-        var mods = Path.Combine(dir, "mods");
-        Directory.CreateDirectory(mods);
-        File.WriteAllText(Path.Combine(mods, "m.jar"), "m");
-        QlDirectoryLayout.StampChannel(mods, "std");
-
-        QlDirectoryLayout.SwitchChannel(dir, "std", "pfm");
-        T.Check("切换后 mods=pfm", QlDirectoryLayout.ReadChannelMarker(mods) == "pfm");
-        T.Check("原 std 收进 mods-std", Directory.Exists(Path.Combine(dir, "mods-std")) &&
-            QlDirectoryLayout.ReadChannelMarker(Path.Combine(dir, "mods-std")) == "std");
-        T.Check("内容跟随 folder 走", File.Exists(Path.Combine(dir, "mods-std", "m.jar")));
-
-        QlDirectoryLayout.SwitchChannel(dir, "pfm", "std");
-        T.Check("切回 std 后 mods 带 std 标记", QlDirectoryLayout.ReadChannelMarker(mods) == "std");
-        T.Check("pfm 停回 mods-pfm", Directory.Exists(Path.Combine(dir, "mods-pfm")));
+        QlDirectoryLayout.Recover(dir, "std");
+        T.Check("空目录里直接建 mods 并盖章",
+            Directory.Exists(Path.Combine(dir, "mods")) &&
+            QlDirectoryLayout.ReadChannelMarker(Path.Combine(dir, "mods")) == "std");
     }
 }

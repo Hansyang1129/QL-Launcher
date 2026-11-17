@@ -19,7 +19,7 @@ try
     ManifestStateSuite.Run();
     LayoutSuite.Run();
     SyncScenariosSuite.Run();
-    SeedDblpackSuite.Run();
+    PackDblpackSuite.Run();
     LaunchSuite.Run();
     AuthSuite.Run();
     RuntimeSuite.Run();
