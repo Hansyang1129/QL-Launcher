@@ -1,0 +1,91 @@
+<UserControl x:Class="Qinglan.Launcher.Ui.Pages.ForumPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 页头 -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="论坛" Style="{StaticResource PageTitle}"/>
+                <TextBlock Style="{StaticResource PageHint}" Margin="0,4,0,0"
+                           Text="轻蓝轨交论坛：帖子列表与站内阅读；内容接口故障时自动切换到 RSS 备份。"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock x:Name="ForumStatusText" Text="尚未加载" Style="{StaticResource PageHint}"
+                           VerticalAlignment="Center" Margin="0,0,10,0"
+                           AutomationProperties.AutomationId="ForumStatusText"/>
+                <Button x:Name="BtnForumRefresh" Content="刷新" Style="{StaticResource BtnGhost}"
+                        Click="OnRefresh" AutomationProperties.AutomationId="BtnForumRefresh"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- 列表 + 正文 -->
+        <Grid Grid.Row="1" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="350"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Style="{StaticResource Card}" Padding="12">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                        <Border x:Name="ForumNote" Background="#FFF7E8" CornerRadius="8"
+                                Padding="10,7" Margin="0,0,0,6" Visibility="Collapsed">
+                            <TextBlock x:Name="ForumNoteText" Style="{StaticResource BaseText}"
+                                       FontSize="11.5" TextWrapping="Wrap"
+                                       AutomationProperties.AutomationId="ForumNoteText"/>
+                        </Border>
+                        <TextBlock x:Name="ForumListStatus" Text="加载帖子中…"
+                                   Style="{StaticResource PageHint}"
+                                   AutomationProperties.AutomationId="ForumListStatus"/>
+                    </StackPanel>
+                    <Button x:Name="BtnMore" DockPanel.Dock="Bottom" Content="加载更多"
+                            Style="{StaticResource BtnGhost}" Margin="0,6,0,0"
+                            Visibility="Collapsed" Click="OnLoadMore"
+                            AutomationProperties.AutomationId="BtnForumMore"/>
+                    <ListBox x:Name="PostList" Style="{StaticResource FlatList}"
+                             SelectionChanged="OnPostSelected"
+                             AutomationProperties.AutomationId="PostList"/>
+                </DockPanel>
+            </Border>
+
+            <Border Grid.Column="1" Style="{StaticResource Card}" Padding="16" Margin="12,0,0,0">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock x:Name="ArticleTitle" Text="论坛文章"
+                                       Style="{StaticResource BaseText}" FontSize="16" FontWeight="Bold"
+                                       TextWrapping="Wrap"
+                                       AutomationProperties.AutomationId="ArticleTitle"/>
+                            <TextBlock x:Name="ArticleMeta" Style="{StaticResource PageHint}"
+                                       Margin="0,3,0,0"
+                                       AutomationProperties.AutomationId="ArticleMeta"/>
+                        </StackPanel>
+                        <Button x:Name="BtnOpenPost" Grid.Column="1" Content="在浏览器打开"
+                                Style="{StaticResource BtnGhost}" VerticalAlignment="Top"
+                                IsEnabled="False" Click="OnOpenPost"
+                                AutomationProperties.AutomationId="BtnForumOpen"/>
+                    </Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="ArticleBody" Margin="0,0,4,0">
+                            <TextBlock Text="选择左侧帖子开始阅读。" Style="{StaticResource PageHint}"
+                                       AutomationProperties.AutomationId="ArticleEmptyHint"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

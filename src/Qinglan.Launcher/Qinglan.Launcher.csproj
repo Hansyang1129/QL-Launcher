@@ -24,4 +24,20 @@
     <Content Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- WebView2：直接引用随仓库分发的 SDK DLL（不是 NuGet 包）；Loader 必须落到 exe 同目录。 -->
+    <Reference Include="Microsoft.Web.WebView2.Core">
+      <HintPath>..\..\lib\webview2\Microsoft.Web.WebView2.Core.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.Wpf">
+      <HintPath>..\..\lib\webview2\Microsoft.Web.WebView2.Wpf.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Content Include="..\..\lib\webview2\WebView2Loader.dll">
+      <Link>WebView2Loader.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

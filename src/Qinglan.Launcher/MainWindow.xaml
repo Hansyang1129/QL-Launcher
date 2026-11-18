@@ -55,13 +55,26 @@
                 </DockPanel>
                 <StackPanel x:Name="NavPanel" Margin="0,10,0,0">
                     <RadioButton GroupName="Nav" Content="首页" Tag="&#xE80F;"
-                                 Style="{StaticResource NavItem}" IsChecked="True" Checked="OnNav"/>
+                                 Style="{StaticResource NavItem}" IsChecked="True" Checked="OnNav"
+                                 AutomationProperties.AutomationId="NavHome"/>
                     <RadioButton GroupName="Nav" Content="轻蓝同步" Tag="&#xE72C;"
-                                 Style="{StaticResource NavItem}" Checked="OnNav"/>
+                                 Style="{StaticResource NavItem}" Checked="OnNav"
+                                 AutomationProperties.AutomationId="NavSync"/>
                     <RadioButton GroupName="Nav" Content="服务器状态" Tag="&#xE9D9;"
-                                 Style="{StaticResource NavItem}" Checked="OnNav"/>
+                                 Style="{StaticResource NavItem}" Checked="OnNav"
+                                 AutomationProperties.AutomationId="NavStatus"/>
+                    <RadioButton GroupName="Nav" Content="MTR 地图" Tag="&#xE707;"
+                                 Style="{StaticResource NavItem}" Checked="OnNav"
+                                 AutomationProperties.AutomationId="NavMap"/>
+                    <RadioButton GroupName="Nav" Content="MTR 轨交" Tag="&#xE7C0;"
+                                 Style="{StaticResource NavItem}" Checked="OnNav"
+                                 AutomationProperties.AutomationId="NavMtr"/>
+                    <RadioButton GroupName="Nav" Content="论坛" Tag="&#xE90A;"
+                                 Style="{StaticResource NavItem}" Checked="OnNav"
+                                 AutomationProperties.AutomationId="NavForum"/>
                     <RadioButton GroupName="Nav" Content="设置" Tag="&#xE713;"
-                                 Style="{StaticResource NavItem}" Checked="OnNav"/>
+                                 Style="{StaticResource NavItem}" Checked="OnNav"
+                                 AutomationProperties.AutomationId="NavSettings"/>
                 </StackPanel>
             </DockPanel>
         </Border>

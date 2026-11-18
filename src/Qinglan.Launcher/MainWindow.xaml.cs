@@ -9,7 +9,7 @@ namespace Qinglan.Launcher;
 public partial class MainWindow : Window
 {
     /// <summary>导航页键，按侧栏顺序排列。</summary>
-    public enum PageKey { Home, Sync, Status, Settings }
+    public enum PageKey { Home, Sync, Status, Map, Mtr, Forum, Settings }
 
     private static MainWindow? _current;
     private readonly Dictionary<PageKey, UserControl> _pages = new();
@@ -64,6 +64,9 @@ public partial class MainWindow : Window
             {
                 PageKey.Sync => new Ui.Pages.SyncPage(),
                 PageKey.Status => new Ui.Pages.StatusPage(),
+                PageKey.Map => new Ui.Pages.MapPage(),
+                PageKey.Mtr => new Ui.Pages.MtrPage(),
+                PageKey.Forum => new Ui.Pages.ForumPage(),
                 PageKey.Settings => new Ui.Pages.SettingsPage(),
                 _ => new Ui.Pages.HomePage(),
             };
@@ -87,6 +90,9 @@ public partial class MainWindow : Window
         PageKey.Home => "首页",
         PageKey.Sync => "轻蓝同步",
         PageKey.Status => "服务器状态",
+        PageKey.Map => "MTR 地图",
+        PageKey.Mtr => "MTR 轨交",
+        PageKey.Forum => "论坛",
         _ => "设置",
     };
 }

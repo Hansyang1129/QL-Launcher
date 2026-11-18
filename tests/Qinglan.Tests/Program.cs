@@ -25,6 +25,8 @@ try
     RuntimeSuite.Run();
     RpuSuite.Run();
     StatusSuite.Run();
+    MtrSuite.Run();
+    ForumSuite.Run();
 }
 finally
 {
