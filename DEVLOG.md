@@ -238,3 +238,22 @@
   client id 为空未实机走设备码（引擎在 M2b-1 已覆盖）；实际用离线账号 <player> 打通全链。
   测试 **409/409 全绿**（390 + 19：Java 组件传递/内存策略/natives 覆盖/配置往返/日志整形/
   参数顺序），构建 0 错 0 警。下一步：M3 服务器状态页 → M4 发布打包。
+- **2026-11-18 M3 服务器状态页**：新 `Core/Status/QlServerStatus.cs`——Minecraft SLP（1.7+ 协议 47
+  varint 分帧握手 + 状态请求，递归摊平 description/MOTD、players.online/max、sample 玩家名，
+  分帧上限 1MB 防恶意长度）与 HTTP GET（读头 + 最多 4KB 正文）双探测；**仅 HTTP 200 算在线**
+  （维护页/错误页不能伪装健康），顺序探测、单点 5s 超时、任何单点异常收敛成离线卡片不拖垮整表，
+  取消向上抛出。状态页重写：刷新卡（时间戳/汇总/30s 自动刷新提示）、三张端点卡（标签/地址/延迟/
+  在线人数/MOTD/失败原因 + 在线离线胶囊），`Loaded`/`Unloaded` 启停 30s 计时器并在每轮结束重置
+  （手动与自动共用 busy 闸门，离页即暂停）；MOTD 的 §x 传统颜色码只在展示层剥除，引擎结果保持原文。
+  **两处真实环境坑**：① QL-HMCL 的默认表探三个服务的根路径，实测 `:14614`/`:19451` 根路径
+  404/404、`:19451` 其余路径 401（服务在线，只是根路径不是健康页）——改探真实 200 路径：
+  MTR 地图 API `/mtr/api/map/stations-and-routes?dimension=minecraft:overworld`、Reporter `/login`。
+  ② 系统代理（Watt Toolkit `127.0.0.1:26561`）对非标端口直接回 404，`HttpClient` 默认走代理时
+  启动器 1/3 在线而同机 curl 全 200；状态探测改用 `UseProxy=false` 的专用 `ProbeClient` 强制直连，
+  与 SLP 的直连 TCP 同口径。UIA E2E（`ql-tmp/e2e-status.ps1`）：首轮 18:24:40 → **3/3 在线**——
+  轻蓝 SLP 延迟 88 ms、在线 0/16、MOTD「轻蓝 二周目-26.8.x / 直接运维: <player>…」可读；
+  MTR Web HTTP 200 115 ms；Reporter HTTP 200 131 ms；30s 后 18:25:10 时间戳更新、延迟重测
+  （64/116/98 ms），自动刷新实证。截图 `ql-tmp/e2e-status/01-status.png`、`02-auto-refresh.png`。
+  测试 **459/459 全绿**（+50：SLP 握手字节/分帧异常/varint 过长/读取超时/连接拒绝、HTTP 200/500/404/
+  超时/非法 URL/非 HTTP 协议、批量隔离与默认表、MOTD 摊平），构建 0 错 0 警。
+  下一步：M4 发布打包。

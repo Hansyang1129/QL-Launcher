@@ -24,6 +24,7 @@ try
     AuthSuite.Run();
     RuntimeSuite.Run();
     RpuSuite.Run();
+    StatusSuite.Run();
 }
 finally
 {
