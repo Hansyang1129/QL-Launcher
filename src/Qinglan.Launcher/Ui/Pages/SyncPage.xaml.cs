@@ -29,7 +29,9 @@ public partial class SyncPage : UserControl
 
     /// <summary>页面每次挂到树上都重读实例（缓存页复用，Loaded 会再次触发）：
     /// 用户可能改过游戏根目录，陈旧的提示会把更新灌进错误的实例。</summary>
-    private async Task RefreshInstanceAsync()
+    /// <param name="keepResult">为 true 时保留同步结果文本与进度条——应用成功的摘要
+    /// 不能被紧跟着的刷新抹掉。</param>
+    private async Task RefreshInstanceAsync(bool keepResult = false)
     {
         _config = QlConfig.Load(App.DataDir);
         _gameRoot = _config.GameDir;
@@ -76,7 +78,7 @@ public partial class SyncPage : UserControl
             ? ""
             : "已记录更新源：" + _state.PackUrl;
         ApplyGate();
-        ResetFlow();
+        ResetFlow(keepResult);
         await Task.CompletedTask;
     }
 
@@ -95,13 +97,17 @@ public partial class SyncPage : UserControl
         if (!_syncable) ResetFlow();
     }
 
-    private void ResetFlow()
+    /// <summary>清掉「查更新/选包」的临时态；<paramref name="keepResult"/> 保留摘要与进度条。</summary>
+    private void ResetFlow(bool keepResult = false)
     {
         OptionalHost.Children.Clear();
         OptionalTitle.Visibility = Visibility.Collapsed;
         BtnApply.IsEnabled = false;
-        SyncResult.Text = "";
-        SyncBar.Visibility = Visibility.Collapsed;
+        if (!keepResult)
+        {
+            SyncResult.Text = "";
+            SyncBar.Visibility = Visibility.Collapsed;
+        }
     }
 
     // ─────────────────────────── 目录与包源 ───────────────────────────
@@ -277,7 +283,8 @@ public partial class SyncPage : UserControl
         finally
         {
             SetBusy(false);
-            await RefreshInstanceAsync().ConfigureAwait(true);
+            // 保留摘要：应用结果（下载/未变/失败续传提示）是用户唯一能看到同步结果的地方。
+            await RefreshInstanceAsync(keepResult: true).ConfigureAwait(true);
         }
     }
 
@@ -328,6 +335,34 @@ public partial class SyncPage : UserControl
             OptionalHost.Children.Add(cb);
         }
     }
+
+    // ─────────────────────────── RPU 接口挂点 ───────────────────────────
+
+    /// <summary>RPU 更新触发接口：RPU 客户端为闭源组件，启动器不实现其更新逻辑；
+    /// 外部组件接入时订阅此事件并负责真正的更新流程。当前无人订阅，按钮保持禁用。</summary>
+    public event EventHandler? RpuUpdateRequested;
+
+    /// <summary>RPU 进度投影接口：外部组件上报（状态文本, 0–100 进度；null = 隐藏进度条），
+    /// 启动器只负责把它投影到 RPU 卡片上。</summary>
+    public void SetRpuUpdateState(string? status, double? percent)
+    {
+        RpuStatusText.Text = string.IsNullOrWhiteSpace(status)
+            ? "（RPU 接口预留：更新状态 · 发布清单 · 手动刷新）"
+            : status;
+        if (percent is { } p)
+        {
+            RpuProgressBar.Visibility = Visibility.Visible;
+            RpuProgressBar.Value = Math.Clamp(p, 0, 100);
+        }
+        else
+        {
+            RpuProgressBar.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>接口预留按钮：接线后由订阅方接管；未接线时按钮禁用，此处只做防御。</summary>
+    private void OnRpuUpdateClick(object sender, RoutedEventArgs e)
+        => RpuUpdateRequested?.Invoke(this, EventArgs.Empty);
 
     // ─────────────────────────── 杂项 ───────────────────────────
 

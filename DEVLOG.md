@@ -188,3 +188,22 @@
   截图 `ql-tmp/sync-page.png`：实例卡「Qinglan-2nd-RPU（平铺）」+ RPU mod 门禁在位 +
   包卡 + RPU 占位，假 URL 框/频道切换/取消键全部消失。构建 0 错 0 警。
   下一步：真包在 <gameDir> 实例现场跑一轮同步实测 → M2b-2 UI 接线 → M3 状态页 → M4 发布。
+- **2026-11-18 真包实测 + RPU 闭源口径 + 摘要保留**：① 真包 `Qinglan-2nd-RPU 26.9.1.mrpack`
+  （68.3MB）解析零漂移：versionId=26.9.1、MC 1.20.1、loader 0.19.5、std=70、common=176
+  （config 172 / options.txt 1 / shaderpacks 3）、可选组 axiom/dh/voxy。实例
+  `<gameDir>\.minecraft\versions\Qinglan-2nd-RPU` 的 `ql-manifest-state.json` 由 QL-HMCL 写入，
+  C# 读出一致（packVersion=26.9.1、packUrl=null、optionalRecorded=true、enabled=[axiom]、
+  tracked std=70/common=176）——**共享状态文件互操作已实证**，格式不动。现场同步：
+  下载 3 / 未变 243 / 重命名 0 / 删除 0 / 交接 0 / 失败 0；3 个下载是渲染器运行时改写的
+  `config/{indium-renderer,iris}.properties`、`config/fabric/indigo-renderer.properties`
+  （包内容≠运行时状态，每轮同步重写回包版本，属预期，非遗漏）。快照备份在
+  `ql-tmp/realrun/backup/`（368 文件），harness `ql-tmp/realrun` 可复跑 inspect/--sync。
+  ② RPU 口径（用户拍板）：**RPU 为闭源组件，读写与更新全部由游戏内客户端自行完成**；启动器
+  只留两个接口挂点——`RpuUpdateRequested` 事件（更新触发）+ `SetRpuUpdateState(status, percent?)`
+  （进度投影），UI 卡片改为说明文案 + 禁用「检查 RPU 更新」按钮 + 默认隐藏进度条，不实现任何
+  RPU 更新/读写逻辑。③ 修复：应用完成后摘要被 `RefreshInstanceAsync` 重置抹掉——`RefreshInstanceAsync`
+  / `ResetFlow` 增加 `keepResult` 参数，`OnApply` 收尾走 `keepResult: true`，摘要保留。
+  UIA E2E（`ql-tmp/e2e-sync.ps1`，截图 `ql-tmp/e2e/01-page|02-checked|03-applied.png`）：
+  标题「版本隔离」正确、可选组仅 axiom 勾选、查更新「已是最新：26.9.1（无需操作）」、
+  应用后「同步完成：下载 3 · 未变 243」且进度条停在 50%（Java 双计数同款）。测试 **390/390 全绿**，
+  构建 0 错 0 警。下一步：M2b-2 启动 UI 接线 → M3 状态页 → M4 发布。
