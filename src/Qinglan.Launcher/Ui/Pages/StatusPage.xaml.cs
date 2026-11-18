@@ -13,8 +13,12 @@ public partial class StatusPage : UserControl
     private static readonly TimeSpan AutoRefreshInterval = TimeSpan.FromSeconds(30);
     private const int ProbeTimeoutMs = 5000;
 
+    /// <summary>玩家胶囊最多渲染的个数，防止超大 sample 拖垮布局。</summary>
+    private const int MaxPlayerChips = 64;
+
     private static readonly Brush OnlineBg = Frozen(0xE8, 0xF7, 0xEF);
     private static readonly Brush OfflineBg = Frozen(0xFD, 0xEC, 0xEA);
+    private static readonly Brush ChipBg = Frozen(0xEA, 0xF3, 0xFD);
 
     private readonly DispatcherTimer _timer = new();
     private bool _busy;
@@ -95,6 +99,85 @@ public partial class StatusPage : UserControl
         ServerList.Children.Clear();
         for (int i = 0; i < probes.Count && i < results.Count; i++)
             ServerList.Children.Add(BuildRow(probes[i], results[i]));
+        RenderPlayers(probes, results);
+    }
+
+    /// <summary>在线玩家卡片：取 SLP 结果的人数与玩家样本，样本缺失时给出原因说明。</summary>
+    private void RenderPlayers(IReadOnlyList<QlProbe> probes, IReadOnlyList<QlProbeResult> results)
+    {
+        PlayerChips.Children.Clear();
+
+        int index = -1;
+        for (int i = 0; i < probes.Count && i < results.Count; i++)
+        {
+            if (probes[i].Kind != QlProbeKind.Slp) continue;
+            index = i;
+            break;
+        }
+        if (index < 0)
+        {
+            PlayerCountText.Text = "—";
+            ShowPlayerHint("未配置 SLP 端点。");
+            PlayerSourceText.Text = "";
+            return;
+        }
+
+        var result = results[index];
+        if (!result.Online)
+        {
+            PlayerCountText.Text = "—";
+            ShowPlayerHint("服务器离线，无法获取在线玩家。");
+            PlayerSourceText.Text = "数据来自 Minecraft SLP 状态查询。";
+            return;
+        }
+
+        int online = result.Players ?? 0;
+        int max = result.PlayersMax ?? 0;
+        PlayerCountText.Text = "在线 " + online + " / " + max;
+        PlayerSourceText.Text = "数据来自 Minecraft SLP 状态查询。";
+
+        if (result.Sample.Count == 0)
+        {
+            ShowPlayerHint(online == 0
+                ? "当前无玩家在线。"
+                : "服务器未公开玩家名单（在线 " + online + " 人）。");
+            return;
+        }
+
+        PlayerEmptyText.Visibility = Visibility.Collapsed;
+        int shown = Math.Min(result.Sample.Count, MaxPlayerChips);
+        for (int i = 0; i < shown; i++)
+            PlayerChips.Children.Add(PlayerChip(result.Sample[i]));
+
+        if (result.Sample.Count > shown)
+            PlayerSourceText.Text = "仅显示前 " + shown + " 位玩家（共 " + result.Sample.Count + " 位）。";
+        else if (shown < online)
+            PlayerSourceText.Text = "仅显示服务器公开的 " + shown + " 位玩家。";
+    }
+
+    private void ShowPlayerHint(string text)
+    {
+        PlayerEmptyText.Text = text;
+        PlayerEmptyText.Visibility = Visibility.Visible;
+    }
+
+    private Border PlayerChip(string name)
+    {
+        var chip = new Border
+        {
+            Background = ChipBg,
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(12, 5, 12, 5),
+            Margin = new Thickness(0, 0, 8, 8),
+        };
+        chip.Child = new TextBlock
+        {
+            Text = name,
+            Style = (Style)FindResource("BaseText"),
+            FontSize = 12.5,
+            Foreground = (Brush)FindResource("TextPrimary"),
+        };
+        return chip;
     }
 
     private Border BuildRow(QlProbe probe, QlProbeResult result)
@@ -124,9 +207,6 @@ public partial class StatusPage : UserControl
                 left.Children.Add(Wrapped(Text(detail, 13, FontWeights.Normal,
                     brushKey: "TextPrimary", top: 6)));
         }
-        if (result.Online && result.Sample.Count > 0)
-            left.Children.Add(Wrapped(Text("在服务器：" + string.Join(", ", result.Sample), 12,
-                FontWeights.Normal, "Microsoft YaHei UI", "TextSecondary", 4)));
         if (!result.Online && !string.IsNullOrWhiteSpace(result.Detail))
             left.Children.Add(Wrapped(Text("失败原因：" + result.Detail!, 12,
                 FontWeights.Normal, "Microsoft YaHei UI", "Danger", 6)));

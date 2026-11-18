@@ -33,6 +33,31 @@
             <!-- 端点卡片由代码填充 -->
             <StackPanel x:Name="ServerList"/>
 
+            <!-- 在线玩家卡片：来自轻蓝 SLP 的玩家样本 -->
+            <Border Style="{StaticResource Card}" Margin="0,2,0,10" Padding="16">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="在线玩家" FontSize="15" FontWeight="Bold"
+                                   FontFamily="Microsoft YaHei UI"
+                                   Foreground="{StaticResource TextPrimary}"/>
+                        <TextBlock x:Name="PlayerCountText" Grid.Column="1" Text="—"
+                                   FontSize="12" FontFamily="Consolas"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.AutomationId="PlayerCountText"/>
+                    </Grid>
+                    <TextBlock x:Name="PlayerEmptyText" Text="尚未探测" Style="{StaticResource PageHint}"
+                               Margin="0,8,0,0" AutomationProperties.AutomationId="PlayerEmptyText"/>
+                    <WrapPanel x:Name="PlayerChips" Margin="0,10,0,0"/>
+                    <TextBlock x:Name="PlayerSourceText" Style="{StaticResource PageHint}"
+                               Margin="0,4,0,0" AutomationProperties.AutomationId="PlayerSourceText"/>
+                </StackPanel>
+            </Border>
+
             <TextBlock Style="{StaticResource PageHint}" Margin="0,6,0,0" TextWrapping="Wrap"
                        Text="SLP 走 Minecraft 1.7+ 状态查询（协议 47），HTTP 仅 200 视为在线；单个端点故障不会影响其他端点。"/>
         </StackPanel>
