@@ -1,6 +1,6 @@
 namespace Qinglan.Launcher.Core;
 
-/// <summary>启动器轻量配置（data/config.json）：只存跨会话需要的玩家偏好。</summary>
+/// <summary>启动器轻量配置（data/config/config.json）：只存跨会话需要的玩家偏好。</summary>
 /// <para>容忍损坏——读不动给默认值，绝不能一个坏配置烧坏启动器（与同步状态同款纪律）。</para>
 public sealed class QlConfig
 {

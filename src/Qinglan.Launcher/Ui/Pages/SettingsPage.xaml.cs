@@ -18,7 +18,7 @@ public partial class SettingsPage : UserControl
 
     private void LoadSettings()
     {
-        var cfg = QlConfig.Load(App.DataDir);
+        var cfg = QlConfig.Load(App.ConfigDir);
         GameDirText.Text = string.IsNullOrWhiteSpace(cfg.GameDir) ? "（未设置）" : cfg.GameDir;
         JavaDirText.Text = string.IsNullOrWhiteSpace(cfg.JavaDir) ? "自动探测" : cfg.JavaDir;
         ClientIdBox.Text = cfg.MicrosoftClientId ?? "";
@@ -48,9 +48,9 @@ public partial class SettingsPage : UserControl
         if (dir is null) return;
         try
         {
-            var cfg = QlConfig.Load(App.DataDir);
+            var cfg = QlConfig.Load(App.ConfigDir);
             cfg.GameDir = dir;
-            cfg.Save(App.DataDir);
+            cfg.Save(App.ConfigDir);
         }
         catch (Exception ex)
         {
@@ -65,9 +65,9 @@ public partial class SettingsPage : UserControl
         if (dir is null) return;
         try
         {
-            var cfg = QlConfig.Load(App.DataDir);
+            var cfg = QlConfig.Load(App.ConfigDir);
             cfg.JavaDir = dir;
-            cfg.Save(App.DataDir);
+            cfg.Save(App.ConfigDir);
         }
         catch (Exception ex)
         {
@@ -80,9 +80,9 @@ public partial class SettingsPage : UserControl
     {
         try
         {
-            var cfg = QlConfig.Load(App.DataDir);
+            var cfg = QlConfig.Load(App.ConfigDir);
             cfg.JavaDir = null;
-            cfg.Save(App.DataDir);
+            cfg.Save(App.ConfigDir);
         }
         catch (Exception ex)
         {
@@ -95,11 +95,11 @@ public partial class SettingsPage : UserControl
     {
         try
         {
-            var cfg = QlConfig.Load(App.DataDir);
+            var cfg = QlConfig.Load(App.ConfigDir);
             cfg.MicrosoftClientId = string.IsNullOrWhiteSpace(ClientIdBox.Text)
                 ? null
                 : ClientIdBox.Text.Trim();
-            cfg.Save(App.DataDir);
+            cfg.Save(App.ConfigDir);
             ClientIdStatusText.Text = string.IsNullOrWhiteSpace(cfg.MicrosoftClientId)
                 ? "已清空：微软登录入口保持隐藏，离线账号照常可用。"
                 : "已保存：回首页即可看到「登录微软账号」。";
@@ -113,7 +113,7 @@ public partial class SettingsPage : UserControl
 
     private void OnOpenDir(object sender, RoutedEventArgs e)
     {
-        var cfg = QlConfig.Load(App.DataDir);
+        var cfg = QlConfig.Load(App.ConfigDir);
         if (string.IsNullOrWhiteSpace(cfg.GameDir) || !Directory.Exists(cfg.GameDir))
             return;
         Globals.OpenUrl(cfg.GameDir);

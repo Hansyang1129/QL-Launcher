@@ -33,7 +33,7 @@ public partial class SyncPage : UserControl
     /// 不能被紧跟着的刷新抹掉。</param>
     private async Task RefreshInstanceAsync(bool keepResult = false)
     {
-        _config = QlConfig.Load(App.DataDir);
+        _config = QlConfig.Load(App.ConfigDir);
         _gameRoot = _config.GameDir;
         _pickedPack = null;
         PackPathBox.Text = "";
@@ -119,7 +119,7 @@ public partial class SyncPage : UserControl
         try
         {
             _config.GameDir = dir;
-            _config.Save(App.DataDir);
+            _config.Save(App.ConfigDir);
         }
         catch (Exception ex)
         {

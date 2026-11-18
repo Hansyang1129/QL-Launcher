@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="轻蓝启动器" Height="680" Width="1040" MinHeight="620" MinWidth="940"
         WindowStartupLocation="CenterScreen" WindowStyle="None"
+        Icon="Assets/branding/app.ico"
         Background="{StaticResource WindowBg}" ResizeMode="CanResize">
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="44" ResizeBorderThickness="6" UseAeroCaptionButtons="False"/>
@@ -20,15 +21,9 @@
         <!-- 标题栏 -->
         <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
                     Margin="18,0,0,0">
-            <Border Width="22" Height="22" CornerRadius="7" VerticalAlignment="Center">
-                <Border.Background>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                        <GradientStop Color="#4FA3FF" Offset="0"/>
-                        <GradientStop Color="#2F6FE8" Offset="1"/>
-                    </LinearGradientBrush>
-                </Border.Background>
-                <TextBlock Text="轻" FontFamily="Microsoft YaHei UI" FontSize="12" FontWeight="Bold"
-                           Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <Border Width="24" Height="24" CornerRadius="7" VerticalAlignment="Center"
+                    Background="White" ClipToBounds="True">
+                <Image Source="Assets/branding/logo.png" Stretch="UniformToFill"/>
             </Border>
             <TextBlock Text="轻蓝启动器" FontFamily="Microsoft YaHei UI" FontSize="14" FontWeight="Bold"
                        Foreground="{StaticResource TextPrimary}" Margin="10,0,8,0"

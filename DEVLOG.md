@@ -301,3 +301,13 @@
   导航（忽略 `about:blank` 等非地图事件）、加 15s 超时兜底，并记录 `开始导航/导航完成 source=`；
   日志实证 `开始导航: http://mc.example.com:14614/` → `成功 source=http://mc.example.com:14614/`，
   地图恢复内嵌渲染（`ql-tmp/e2e-m4/01-map.png`）。构建 0 错 0 警。
+- **2026-11-18 品牌图标 + 配置目录 + 英文发布名**：用户提供的 LOGO 落到
+  `Assets/branding/logo.png`，用 System.Drawing 生成 7 个尺寸（16/24/32/48/64/128/256）的
+  `app.ico`；csproj 设 `ApplicationIcon`，主窗 `Icon` 与标题栏左侧图标都换成 LOGO（替换原来的
+  “轻”字渐变块）。配置从 `data/config.json` 迁到 **`data/config/config.json`**（新增
+  `App.ConfigDir`，启动时自动迁移旧文件，失败只记日志），Home/Sync/Settings 的所有
+  `QlConfig.Load/Save` 改用配置目录，日志、Java 运行时、WebView2 缓存仍留在 `data/`。单文件发布
+  的 data 目录改用 `Environment.ProcessPath` 定位 exe，不再落到单文件解包临时目录。桌面产物统一
+  英文名：`Desktop\QinglanLauncher.exe`（单文件）、`Desktop\QinglanLauncher\`（自包含目录）、
+  `Desktop\QinglanLauncher.lnk`；旧中文 exe/快捷方式/目录已清理。截图 `ql-tmp/logo-check.png`
+  确认标题栏 LOGO 生效；测试仍 **577/577 全绿**，构建 0 错 0 警。

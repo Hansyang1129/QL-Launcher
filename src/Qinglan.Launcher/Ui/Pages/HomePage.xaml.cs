@@ -53,7 +53,7 @@ public partial class HomePage : UserControl
     /// <summary>每次页面挂回树上都重读配置/实例（设置页可能刚改过根目录或 Java）。</summary>
     private void Refresh()
     {
-        _config = QlConfig.Load(App.DataDir);
+        _config = QlConfig.Load(App.ConfigDir);
         _gameRoot = string.IsNullOrWhiteSpace(_config.GameDir) ? null : _config.GameDir;
         _runDir = _gameRoot is not null && Directory.Exists(_gameRoot)
             ? QlInstances.ResolveRunDir(_gameRoot)
@@ -629,7 +629,7 @@ public partial class HomePage : UserControl
     {
         try
         {
-            _config.Save(App.DataDir);
+            _config.Save(App.ConfigDir);
         }
         catch (Exception ex)
         {
