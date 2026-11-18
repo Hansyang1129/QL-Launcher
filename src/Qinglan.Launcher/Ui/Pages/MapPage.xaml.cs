@@ -15,6 +15,7 @@ public partial class MapPage : UserControl
 {
     private bool _ready;
     private bool _initializing;
+    private bool _navigatingMap;
 
     public MapPage()
     {
@@ -56,6 +57,7 @@ public partial class MapPage : UserControl
             var core = Web.CoreWebView2;
             core.Settings.AreDevToolsEnabled = false;
             core.Settings.IsStatusBarEnabled = false;
+            core.NavigationStarting += OnNavigationStarting;
             core.NavigationCompleted += OnNavigationCompleted;
             // 地图里的站名/线路弹窗常开新窗口：交给系统浏览器，避免页内再叠一个无头窗口。
             core.NewWindowRequested += (_, e) =>
@@ -65,9 +67,8 @@ public partial class MapPage : UserControl
             };
 
             _ready = true;
-            ShowLoading("正在连接 " + QlMtr.WebMapUrl + " …");
-            core.Navigate(QlMtr.WebMapUrl);
             Globals.Log("MTR 地图：WebView2 " + version + " 开始加载 " + QlMtr.WebMapUrl);
+            StartMapNavigation();
         }
         catch (Exception ex)
         {
@@ -80,8 +81,43 @@ public partial class MapPage : UserControl
         }
     }
 
+    /// <summary>发起地图导航。只认这次导航的完成事件，避免初始化阶段的 about:blank 中止误判。</summary>
+    private void StartMapNavigation()
+    {
+        if (Web.CoreWebView2 is null) return;
+        _navigatingMap = true;
+        ShowLoading("正在连接 " + QlMtr.WebMapUrl + " …");
+        Web.CoreWebView2.Navigate(QlMtr.WebMapUrl);
+        _ = NavigationTimeoutAsync();
+    }
+
+    /// <summary>导航迟迟不完成时的兜底提示；若真实导航稍后成功，完成事件仍会切回地图。</summary>
+    private async Task NavigationTimeoutAsync()
+    {
+        await Task.Delay(TimeSpan.FromSeconds(15));
+        if (!_navigatingMap) return;
+        ShowFallback("webview 地图加载超时",
+            "连接 " + QlMtr.WebMapUrl + " 超过 15 秒未完成。可重试或在浏览器打开。");
+        Globals.Log("MTR 地图导航超时");
+    }
+
+    private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
+    {
+        Globals.Log("MTR 地图开始导航: " + e.Uri);
+    }
+
     private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
+        string source = Web.CoreWebView2?.Source ?? "";
+        Globals.Log("MTR 地图导航完成: " + (e.IsSuccess ? "成功" : e.WebErrorStatus.ToString())
+            + " source=" + source);
+        if (!_navigatingMap) return;
+
+        // WebView2 初始化时自带一次 about:blank 导航，控件被隐藏/重建时可能以 Unknown 中止；
+        // 它不是地图导航，忽略掉，否则会误切到失败面板并中止真正的地图加载。
+        if (source.StartsWith("about:", StringComparison.OrdinalIgnoreCase)) return;
+
+        _navigatingMap = false;
         if (e.IsSuccess)
         {
             LoadingPanel.Visibility = Visibility.Collapsed;
@@ -101,8 +137,7 @@ public partial class MapPage : UserControl
     {
         if (Web.CoreWebView2 is not null)
         {
-            ShowLoading("正在重新加载地图…");
-            Web.CoreWebView2.Navigate(QlMtr.WebMapUrl);
+            StartMapNavigation();
             return;
         }
         _ = EnsureWebViewAsync();

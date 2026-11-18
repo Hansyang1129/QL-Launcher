@@ -358,6 +358,20 @@ public static class QlMtr
     /// <summary>线路展示名：中文主名（调用方可另附编号）。</summary>
     public static string RouteDisplayName(QlMtrRoute route) => PrimaryName(route.Name);
 
+    /// <summary>线路英文名：双语名的第二段（忽略方向段）。</summary>
+    public static string RouteEnglishName(string name)
+    {
+        string[] parts = name.Split('|');
+        return parts.Length >= 2 ? parts[1].Trim() : "";
+    }
+
+    /// <summary>
+    /// 线路分组的键：中文主名 + 服务编号。MTR 把上下行拆成两条 route，
+    /// 这个键把同一线路同一服务的多个方向合并成一条展示项。
+    /// </summary>
+    public static string RouteGroupKey(QlMtrRoute route)
+        => PrimaryName(route.Name) + "\u001F" + route.Number;
+
     // ─────────────────────────── JSON 工具 ───────────────────────────
 
     private static string Endpoint(string name)

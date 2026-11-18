@@ -91,7 +91,7 @@
                                          AutomationProperties.AutomationId="ModeRoute"/>
                         </StackPanel>
                     </Grid>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer x:Name="StationScroll" VerticalScrollBarVisibility="Auto">
                         <StackPanel x:Name="StationDetail" Margin="0,0,4,0"
                                     AutomationProperties.AutomationId="StationDetail">
                             <TextBlock Text="先选择左侧车站，再在上方切换按站台 / 按线路。"
@@ -136,8 +136,10 @@
                                    Style="{StaticResource PageHint}" Margin="0,2,12,0"
                                    TextTrimming="CharacterEllipsis"
                                    AutomationProperties.AutomationId="RouteSubtitle"/>
+                        <WrapPanel x:Name="RouteDirectionTabs" Margin="0,6,0,0"
+                                   AutomationProperties.AutomationId="RouteDirectionTabs"/>
                     </StackPanel>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer x:Name="RouteScroll" VerticalScrollBarVisibility="Auto">
                         <StackPanel x:Name="RouteDetail" Margin="0,0,4,0"
                                     AutomationProperties.AutomationId="RouteDetail">
                             <TextBlock Text="请选择左侧线路。" Style="{StaticResource PageHint}"

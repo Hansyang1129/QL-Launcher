@@ -177,6 +177,16 @@ internal static class MtrSuite
         T.CheckEq("线路方向后缀", "N", QlMtr.RouteDirection("一号线|Line 1||N"));
         T.CheckEq("两段名方向取第二段", "B", QlMtr.RouteDirection("A|B"));
         T.CheckEq("无方向后缀", "", QlMtr.RouteDirection("A"));
+
+        var up = new QlMtrRoute(Id(0x51), "南际铁路|Nansai Rail||S2 -U", 0, "S2", false,
+            "NONE", Array.Empty<QlMtrRouteStop>(), Array.Empty<long>());
+        var down = new QlMtrRoute(Id(0x52), "南际铁路|Nansai Rail||S2 -D", 0, "S2", false,
+            "NONE", Array.Empty<QlMtrRouteStop>(), Array.Empty<long>());
+        var other = new QlMtrRoute(Id(0x53), "南际铁路|Nansai Rail||S3 -U", 0, "S3", false,
+            "NONE", Array.Empty<QlMtrRouteStop>(), Array.Empty<long>());
+        T.CheckEq("同线同服务上下行分组键一致", QlMtr.RouteGroupKey(up), QlMtr.RouteGroupKey(down));
+        T.Check("不同服务分组键不同", QlMtr.RouteGroupKey(up) != QlMtr.RouteGroupKey(other));
+        T.CheckEq("线路英文名忽略方向段", "Nansai Rail", QlMtr.RouteEnglishName(up.Name));
     }
 
     private static void Router()

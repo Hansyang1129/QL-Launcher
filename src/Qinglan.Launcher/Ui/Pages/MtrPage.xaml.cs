@@ -13,18 +13,21 @@ namespace Qinglan.Launcher.Ui.Pages;
 /// </summary>
 public partial class MtrPage : UserControl
 {
-    private const int TrainsPerPlatform = 6;
+    private const int TrainsPerPlatform = 3;
     private const int MaxLocalPaths = 5;
 
     private QlMtrSnapshot? _snapshot;
     private QlMtrDepartures? _departures;
     private List<StationChoice> _stations = new();
     private List<QlMtrRoute> _routes = new();
+    private List<RouteGroup> _routeGroups = new();
     private Dictionary<string, string> _stationNames = new(StringComparer.Ordinal);
 
     private StationChoice? _station;
     private StationChoice? _from;
     private StationChoice? _to;
+    private RouteGroup? _routeGroup;
+    private QlMtrRoute? _routeDirection;
 
     private bool _loading;
     private bool _loaded;
@@ -68,6 +71,7 @@ public partial class MtrPage : UserControl
             _stationNames = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var station in snapshot.Stations)
                 _stationNames.TryAdd(station.Id, QlMtr.PrimaryName(station.Name));
+            _routeGroups = BuildRouteGroups(_routes);
 
             _loaded = true;
             PopulateStationList();
@@ -75,9 +79,11 @@ public partial class MtrPage : UserControl
             PopulatePlanPickers();
             RestoreSelection();
 
-            MtrStatusText.Text = "已加载 " + _stations.Count + " 座车站 · " + _routes.Count + " 条线路"
+            MtrStatusText.Text = "已加载 " + _stations.Count + " 座车站 · " + _routeGroups.Count
+                + " 条线路 / " + _routes.Count + " 个方向"
                 + (_departures is null ? "（时刻表不可用）" : " · " + DateTime.Now.ToString("HH:mm:ss"));
-            MainWindow.Instance.SetStatus("MTR 轨交：" + _stations.Count + " 站 / " + _routes.Count + " 线");
+            MainWindow.Instance.SetStatus("MTR 轨交：" + _stations.Count + " 站 / "
+                + _routeGroups.Count + " 线");
         }
         catch (Exception ex)
         {
@@ -114,6 +120,7 @@ public partial class MtrPage : UserControl
         StationDetail.Children.Add(Notice("MTR 地图 API 查询失败：" + detail));
         RouteDetail.Children.Clear();
         RouteDetail.Children.Add(Notice("MTR 地图 API 查询失败：" + detail));
+        RouteDirectionTabs.Children.Clear();
         PlanResults.Children.Clear();
         PlanResults.Children.Add(Notice("MTR 地图 API 查询失败：" + detail));
     }
@@ -126,7 +133,11 @@ public partial class MtrPage : UserControl
             SelectInList(StationList, _station);
             if (StationList.SelectedItem is not null) RenderStation();
         }
-        if (_routes.Count > 0 && RouteList.SelectedItem is not null) RenderRoute();
+        if (_routeGroup is not null)
+        {
+            _routeGroup = _routeGroups.FirstOrDefault(group => group.Key == _routeGroup.Key);
+            if (_routeGroup is not null) ApplyRouteGroup(_routeGroup);
+        }
         FillPlanCombo(FromCombo, FromFilter.Text, _from);
         FillPlanCombo(ToCombo, ToFilter.Text, _to);
     }
@@ -220,6 +231,7 @@ public partial class MtrPage : UserControl
     {
         var choice = _station;
         if (choice is null || _snapshot is null) return;
+        StationScroll.ScrollToTop();
         if (ModeRoute.IsChecked == true)
         {
             RenderStationRoutes(choice);
@@ -266,12 +278,24 @@ public partial class MtrPage : UserControl
             foreach (var entry in ordered)
             {
                 entry.Value.Sort((a, b) => a.Arrival.CompareTo(b.Arrival));
+
+                // 每个站台一张卡片，卡片内按时间列出最近几班；服务器可能忽略上限，这里再截断一次。
+                if (entry.Value.Count > TrainsPerPlatform)
+                    entry.Value.RemoveRange(TrainsPerPlatform,
+                        entry.Value.Count - TrainsPerPlatform);
+
                 var inner = new StackPanel();
-                inner.Children.Add(Text("站台 " + labels[entry.Key], 13.5, FontWeights.Bold,
-                    top: 0));
-                foreach (var arrival in entry.Value)
-                    inner.Children.Add(ArrivalRow(arrival, now));
-                StationDetail.Children.Add(Card(inner));
+                var header = new StackPanel { Orientation = Orientation.Horizontal };
+                header.Children.Add(Text("站台 " + labels[entry.Key], 14, FontWeights.Bold));
+                header.Children.Add(Text("  ·  最近 " + entry.Value.Count + " 班", 11.5,
+                    FontWeights.Normal, "Microsoft YaHei UI", "TextSecondary", 0));
+                inner.Children.Add(header);
+                for (int i = 0; i < entry.Value.Count; i++)
+                {
+                    inner.Children.Add(ArrivalRow(entry.Value[i], now,
+                        i == entry.Value.Count - 1));
+                }
+                StationDetail.Children.Add(Card(inner, padding: 14));
             }
         }
         catch (Exception ex)
@@ -293,26 +317,43 @@ public partial class MtrPage : UserControl
             : int.MaxValue;
     }
 
-    private Border ArrivalRow(QlMtrArrival arrival, long now)
+    /// <summary>站台卡片内的一班车：左侧线路与终点，右侧到站时间/实时/终点站标签。</summary>
+    private Border ArrivalRow(QlMtrArrival arrival, long now, bool last)
     {
-        var row = new StackPanel();
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var left = new StackPanel();
         var line = new StackPanel { Orientation = Orientation.Horizontal };
         if (arrival.RouteColor != 0) line.Children.Add(Swatch(arrival.RouteColor));
         string routeName = QlMtr.PrimaryName(arrival.RouteName);
         line.Children.Add(Text(string.IsNullOrEmpty(arrival.RouteNumber)
             ? routeName
             : arrival.RouteNumber + "  " + routeName, 13.5, FontWeights.SemiBold));
-        row.Children.Add(line);
-        row.Children.Add(Text("开往 " + QlMtr.PrimaryName(arrival.Destination), 12,
+        left.Children.Add(line);
+        left.Children.Add(Text("开往 " + QlMtr.PrimaryName(arrival.Destination), 12,
             FontWeights.Normal, "Microsoft YaHei UI", "TextSecondary", 2));
+        grid.Children.Add(left);
 
-        var tags = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+        var tags = new WrapPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
         tags.Children.Add(Pill(MinutesText(arrival.Arrival, now) + "后到站", "Accent"));
         if (arrival.Realtime) tags.Children.Add(Pill("实时", "OkGreen"));
         if (arrival.Terminating) tags.Children.Add(Pill("终点站", "Danger"));
-        tags.Children.Add(Pill("站台 " + arrival.PlatformName, null));
-        row.Children.Add(tags);
-        return Block(row);
+        Grid.SetColumn(tags, 1);
+        grid.Children.Add(tags);
+
+        return new Border
+        {
+            Child = grid,
+            Padding = new Thickness(0, 9, 0, 9),
+            BorderBrush = (Brush)FindResource("Divider"),
+            BorderThickness = new Thickness(0, 0, 0, last ? 0 : 1),
+        };
     }
 
     /// <summary>按线路视图：找出途经该站的全部线路，列出站台与下一班。</summary>
@@ -335,31 +376,73 @@ public partial class MtrPage : UserControl
         }
 
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        foreach (var route in serving)
+        foreach (var group in BuildRouteGroups(serving))
         {
-            var platforms = route.Stops
-                .Where(stop => choice.IdSet.Contains(stop.StationId))
-                .Select(stop => stop.PlatformName)
-                .Where(name => !string.IsNullOrEmpty(name))
-                .Distinct()
-                .ToList();
-            string next = NextDepartureText(route, choice.IdSet, now);
             var inner = new StackPanel();
             var line = new StackPanel { Orientation = Orientation.Horizontal };
-            if (route.Color != 0) line.Children.Add(Swatch(route.Color));
-            line.Children.Add(Text(QlMtr.PrimaryName(route.Name), 13.5, FontWeights.SemiBold));
+            if (group.Color != 0) line.Children.Add(Swatch(group.Color));
+            line.Children.Add(Text(group.Primary, 14, FontWeights.Bold));
+            if (group.Service.Length > 0)
+                line.Children.Add(Text("  " + group.Service, 12, FontWeights.Normal,
+                    "Microsoft YaHei UI", "TextSecondary", 0));
+            if (group.Secondary.Length > 0)
+                line.Children.Add(Text("  " + group.Secondary, 11, FontWeights.Normal,
+                    "Microsoft YaHei UI", "TextSecondary", 0));
             inner.Children.Add(line);
-            string direction = QlMtr.RouteDirection(route.Name);
-            if (!string.IsNullOrEmpty(direction))
-                inner.Children.Add(Text(direction, 11.5, FontWeights.Normal,
+
+            // 卡片内逐行列出每个方向：终点、方向后缀、本站站台与最近一班。
+            for (int i = 0; i < group.Routes.Count; i++)
+            {
+                var route = group.Routes[i];
+                var platforms = route.Stops
+                    .Where(stop => choice.IdSet.Contains(stop.StationId))
+                    .Select(stop => stop.PlatformName)
+                    .Where(name => !string.IsNullOrEmpty(name))
+                    .Distinct()
+                    .ToList();
+
+                var row = new Grid();
+                row.ColumnDefinitions.Add(new ColumnDefinition());
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var left = new StackPanel();
+                left.Children.Add(Text("开往 " + RouteTerminus(route), 12.5, FontWeights.SemiBold));
+                string direction = QlMtr.RouteDirection(route.Name);
+                left.Children.Add(Text(route.Stops.Count + " 站"
+                    + (direction.Length > 0 ? " · " + direction : ""), 10.5, FontWeights.Normal,
                     "Microsoft YaHei UI", "TextSecondary", 1));
-            var tags = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
-            foreach (string platform in platforms)
-                tags.Children.Add(Pill("站台 " + platform, null));
-            tags.Children.Add(Pill(next, "Accent"));
-            inner.Children.Add(tags);
-            StationDetail.Children.Add(Card(inner));
+                row.Children.Add(left);
+
+                var tags = new WrapPanel
+                {
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                };
+                foreach (string platform in platforms)
+                    tags.Children.Add(Pill("站台 " + platform, null));
+                tags.Children.Add(Pill(NextDepartureText(route, choice.IdSet, now), "Accent"));
+                Grid.SetColumn(tags, 1);
+                row.Children.Add(tags);
+
+                inner.Children.Add(new Border
+                {
+                    Child = row,
+                    Padding = new Thickness(0, 8, 0, 8),
+                    BorderBrush = (Brush)FindResource("Divider"),
+                    BorderThickness = new Thickness(0, 0, 0,
+                        i == group.Routes.Count - 1 ? 0 : 1),
+                });
+            }
+            StationDetail.Children.Add(Card(inner, padding: 14));
         }
+    }
+
+    /// <summary>线路终点的中文站名（按站序最后一座站台）。</summary>
+    private string RouteTerminus(QlMtrRoute route)
+    {
+        if (route.Stops.Count == 0) return "—";
+        string id = route.Stops[^1].StationId;
+        return _stationNames.TryGetValue(id, out string? name) ? name : id;
     }
 
     /// <summary>某线路在给定站台集合上的最早一班；没有时刻表时给出说明。</summary>
@@ -393,24 +476,20 @@ public partial class MtrPage : UserControl
         try
         {
             string query = (RouteSearchBox.Text ?? "").Trim();
-            var selected = (RouteList.SelectedItem as ListBoxItem)?.Tag as QlMtrRoute;
             RouteList.Items.Clear();
-            foreach (var route in _routes)
+            foreach (var group in _routeGroups)
             {
-                string primary = QlMtr.PrimaryName(route.Name);
-                string secondary = QlMtr.SecondaryName(route.Name) ?? "";
-                string direction = QlMtr.RouteDirection(route.Name);
-                string search = primary + " " + secondary + " " + direction + " " + route.Number;
-                if (query.Length > 0 && !search.Contains(query, StringComparison.OrdinalIgnoreCase))
+                if (query.Length > 0 &&
+                    !group.Search.Contains(query, StringComparison.OrdinalIgnoreCase))
                     continue;
-                RouteList.Items.Add(RouteItem(route, secondary, direction));
+                RouteList.Items.Add(RouteItem(group));
             }
-            if (selected is not null)
+            if (_routeGroup is not null)
             {
                 foreach (var item in RouteList.Items)
                 {
-                    if (item is ListBoxItem row && row.Tag is QlMtrRoute candidate &&
-                        candidate.Id == selected.Id)
+                    if (item is ListBoxItem row && row.Tag is RouteGroup candidate &&
+                        candidate.Key == _routeGroup.Key)
                     {
                         RouteList.SelectedItem = row;
                         break;
@@ -424,57 +503,108 @@ public partial class MtrPage : UserControl
         }
     }
 
-    private ListBoxItem RouteItem(QlMtrRoute route, string secondary, string direction)
+    private ListBoxItem RouteItem(RouteGroup group)
     {
         var panel = new StackPanel();
         var line = new StackPanel { Orientation = Orientation.Horizontal };
-        if (route.Color != 0) line.Children.Add(Swatch(route.Color));
-        line.Children.Add(Text(QlMtr.PrimaryName(route.Name), 13.5, FontWeights.SemiBold));
-        if (!string.IsNullOrEmpty(route.Number))
-        {
-            line.Children.Add(Text("  " + route.Number, 12, FontWeights.Normal,
-                "Consolas", "TextSecondary"));
-        }
+        if (group.Color != 0) line.Children.Add(Swatch(group.Color));
+        line.Children.Add(Text(group.Primary, 13.5, FontWeights.SemiBold));
+        if (group.Service.Length > 0)
+            line.Children.Add(Text("  " + group.Service, 11.5, FontWeights.Normal,
+                "Microsoft YaHei UI", "TextSecondary", 0));
         panel.Children.Add(line);
-        string subtitle = direction.Length > 0
-            ? (secondary.Length > 0 ? secondary + " · " + direction : direction)
-            : secondary;
-        if (!string.IsNullOrEmpty(subtitle))
-            panel.Children.Add(Text(subtitle, 11, FontWeights.Normal, "Microsoft YaHei UI",
-                "TextSecondary", 1, ellipsis: true));
-        return new ListBoxItem { Content = panel, Tag = route };
+
+        var meta = new List<string>();
+        if (group.Secondary.Length > 0) meta.Add(group.Secondary);
+        meta.Add(group.Routes.Count + " 个方向");
+        meta.Add(group.MaxStops + " 站");
+        panel.Children.Add(Text(string.Join(" · ", meta), 10.5, FontWeights.Normal,
+            "Microsoft YaHei UI", "TextSecondary", 1, ellipsis: true));
+        return new ListBoxItem { Content = panel, Tag = group };
     }
 
     private void OnRouteSelected(object sender, SelectionChangedEventArgs e)
     {
         if (_suppressSelection) return;
-        if (RouteList.SelectedItem is ListBoxItem row && row.Tag is QlMtrRoute route)
+        if (RouteList.SelectedItem is ListBoxItem row && row.Tag is RouteGroup group)
         {
-            RouteTitle.Text = QlMtr.PrimaryName(route.Name)
-                + (string.IsNullOrEmpty(route.Number) ? "" : "  " + route.Number);
-            string direction = QlMtr.RouteDirection(route.Name);
-            RouteSubtitle.Text = (route.Stops.Count + " 站"
-                + (string.IsNullOrEmpty(direction) ? "" : " · " + direction)
-                + " · 按站序逐站展示最近一班与停靠站台");
-            RenderRoute(route);
+            ApplyRouteGroup(group);
+            return;
+        }
+
+        _routeGroup = null;
+        _routeDirection = null;
+        RouteDirectionTabs.Children.Clear();
+        RouteTitle.Text = "请选择线路";
+        RouteSubtitle.Text = "同线上下行合并展示，选择方向查看站序";
+        RouteDetail.Children.Clear();
+        RouteDetail.Children.Add(Notice("请选择左侧线路。"));
+    }
+
+    /// <summary>显示线路头与方向页签；方向页签逐个列出该线路的上下行 / 服务方向。</summary>
+    private void ApplyRouteGroup(RouteGroup group)
+    {
+        _routeGroup = group;
+        RouteTitle.Text = group.Primary + (group.Service.Length > 0 ? "  " + group.Service : "");
+        string subtitle = group.Secondary.Length > 0 ? group.Secondary + " · " : "";
+        RouteSubtitle.Text = subtitle + group.Routes.Count + " 个方向 · 选择方向查看站序与下一班";
+        RouteDirectionTabs.Children.Clear();
+
+        string? keepId = _routeDirection?.Id;
+        var labels = new Dictionary<string, int>(StringComparer.Ordinal);
+        RadioButton? check = null;
+        foreach (var route in group.Routes)
+        {
+            string label = QlMtr.RouteDirection(route.Name);
+            if (label.Length == 0) label = "默认方向";
+            labels[label] = labels.TryGetValue(label, out int seen) ? seen + 1 : 1;
+            if (labels[label] > 1) label += " " + labels[label];
+
+            var tab = new RadioButton
+            {
+                Content = label,
+                GroupName = "RouteDirection",
+                Style = (Style)FindResource("SegTab"),
+                Tag = route,
+            };
+            tab.Checked += OnRouteDirectionChanged;
+            RouteDirectionTabs.Children.Add(tab);
+            if (keepId is not null && route.Id == keepId) check = tab;
+        }
+
+        check ??= RouteDirectionTabs.Children.Count > 0
+            ? (RadioButton)RouteDirectionTabs.Children[0]
+            : null;
+        if (check is not null)
+        {
+            // 勾选会触发 Checked，由它渲染该方向的站序。
+            check.IsChecked = true;
         }
         else
         {
-            RouteTitle.Text = "请选择线路";
-            RouteSubtitle.Text = "按站序逐站展示最近一班与停靠站台";
+            _routeDirection = null;
             RouteDetail.Children.Clear();
-            RouteDetail.Children.Add(Notice("请选择左侧线路。"));
+            RouteDetail.Children.Add(Notice("该线路暂无可用方向。"));
+        }
+    }
+
+    private void OnRouteDirectionChanged(object sender, RoutedEventArgs e)
+    {
+        if (sender is RadioButton tab && tab.Tag is QlMtrRoute route)
+        {
+            _routeDirection = route;
+            RenderRoute(route);
         }
     }
 
     private void RenderRoute()
     {
-        if (RouteList.SelectedItem is ListBoxItem row && row.Tag is QlMtrRoute route)
-            RenderRoute(route);
+        if (_routeDirection is not null) RenderRoute(_routeDirection);
     }
 
     private void RenderRoute(QlMtrRoute route)
     {
+        RouteScroll.ScrollToTop();
         RouteDetail.Children.Clear();
         if (_snapshot is null)
         {
@@ -833,6 +963,79 @@ public partial class MtrPage : UserControl
         }
         choices.Sort((a, b) => string.Compare(a.Primary, b.Primary, StringComparison.CurrentCulture));
         return choices;
+    }
+
+    /// <summary>把同一线路同一服务的上下行 route 合并成一条展示项。</summary>
+    private static List<RouteGroup> BuildRouteGroups(IEnumerable<QlMtrRoute> routes)
+    {
+        var map = new Dictionary<string, List<QlMtrRoute>>(StringComparer.Ordinal);
+        foreach (var route in routes)
+        {
+            string key = QlMtr.RouteGroupKey(route);
+            if (!map.TryGetValue(key, out var list)) map[key] = list = new();
+            list.Add(route);
+        }
+
+        var groups = new List<RouteGroup>();
+        foreach (var pair in map)
+        {
+            var list = pair.Value;
+            list.Sort((a, b) =>
+            {
+                int byDirection = string.Compare(QlMtr.RouteDirection(a.Name),
+                    QlMtr.RouteDirection(b.Name), StringComparison.CurrentCulture);
+                return byDirection != 0
+                    ? byDirection
+                    : string.Compare(a.Id, b.Id, StringComparison.Ordinal);
+            });
+
+            var first = list[0];
+            string primary = QlMtr.PrimaryName(first.Name);
+            string secondary = QlMtr.RouteEnglishName(first.Name);
+            string service = QlMtr.PrimaryName(first.Number).Trim();
+            var search = new List<string> { primary, secondary, first.Number, service };
+            foreach (var route in list)
+            {
+                search.Add(route.Name);
+                search.Add(QlMtr.RouteDirection(route.Name));
+            }
+
+            groups.Add(new RouteGroup
+            {
+                Key = pair.Key,
+                Primary = primary,
+                Secondary = secondary,
+                Service = service,
+                Color = first.Color,
+                MaxStops = list.Max(route => route.Stops.Count),
+                Search = string.Join(" ", search
+                    .Where(text => !string.IsNullOrWhiteSpace(text))
+                    .Distinct(StringComparer.Ordinal)),
+                Routes = list,
+            });
+        }
+
+        groups.Sort((a, b) =>
+        {
+            int byName = string.Compare(a.Primary, b.Primary, StringComparison.CurrentCulture);
+            return byName != 0
+                ? byName
+                : string.Compare(a.Service, b.Service, StringComparison.CurrentCulture);
+        });
+        return groups;
+    }
+
+    /// <summary>同一线路同一服务的一组方向（通常为上下行）。</summary>
+    private sealed class RouteGroup
+    {
+        public string Key { get; init; } = "";
+        public string Primary { get; init; } = "";
+        public string Secondary { get; init; } = "";
+        public string Service { get; init; } = "";
+        public int Color { get; init; }
+        public int MaxStops { get; init; }
+        public string Search { get; init; } = "";
+        public IReadOnlyList<QlMtrRoute> Routes { get; init; } = Array.Empty<QlMtrRoute>();
     }
 
     /// <summary>一座“用户车站”：中文主名 + 英文名 + 站台 id 集合。</summary>
