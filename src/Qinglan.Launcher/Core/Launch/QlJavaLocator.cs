@@ -52,9 +52,9 @@ public static partial class QlJavaLocator
         var path = Environment.GetEnvironmentVariable("PATH") ?? "";
         foreach (var dir in path.Split(';', StringSplitOptions.RemoveEmptyEntries)) AddDir(dir);
 
-        // 下载位 JRE（M2b 落地 QLRuntime 下载后挂这里）
-        foreach (var sub in SafeDirs(Path.Combine(App.DataDir), "runtimes"))
-            AddDir(sub);
+        // 下载位 JRE：Mojang 清单可能把文件放在组件前缀子目录里，递归找 bin/java.exe。
+        foreach (var exe in SafeJavaExes(Path.Combine(App.DataDir, "runtimes")))
+            exes.Add(exe);
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var found = new List<QlJavaRuntime>();
@@ -132,6 +132,23 @@ public static partial class QlJavaLocator
             return Directory.Exists(dir)
                 ? Directory.EnumerateDirectories(dir)
                 : Array.Empty<string>();
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    /// <summary>递归找 java.exe（只认 bin/ 下一层），目录不可读时给空表。</summary>
+    private static IEnumerable<string> SafeJavaExes(string dir)
+    {
+        try
+        {
+            if (!Directory.Exists(dir)) return Array.Empty<string>();
+            return Directory.EnumerateFiles(dir, "java.exe", SearchOption.AllDirectories)
+                .Where(p => string.Equals(Path.GetFileName(Path.GetDirectoryName(p)), "bin",
+                    StringComparison.OrdinalIgnoreCase))
+                .ToArray();
         }
         catch
         {

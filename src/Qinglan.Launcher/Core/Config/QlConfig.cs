@@ -16,6 +16,15 @@ public sealed class QlConfig
     /// <summary>微软登录 refresh_token（静默续期用）；空 = 没登录过微软账号。</summary>
     [JsonPropertyName("microsoftRefreshToken")] public string? MicrosoftRefreshToken { get; set; }
 
+    /// <summary>微软 OAuth 应用 client id；空 = 禁用微软登录（离线启动照常）。</summary>
+    [JsonPropertyName("microsoftClientId")] public string? MicrosoftClientId { get; set; }
+
+    /// <summary>最近一次微软登录的玩家名（仅界面展示；启动前仍会刷新令牌）。</summary>
+    [JsonPropertyName("microsoftAccountName")] public string? MicrosoftAccountName { get; set; }
+
+    /// <summary>离线玩家名（未登录微软时使用）。</summary>
+    [JsonPropertyName("playerName")] public string? PlayerName { get; set; }
+
     /// <summary>游戏内存上限 MB；0 = 自动（按物理内存取 1/4，夹 [2048, 8192]）。</summary>
     [JsonPropertyName("maxMemoryMb")] public int MaxMemoryMb { get; set; }
 

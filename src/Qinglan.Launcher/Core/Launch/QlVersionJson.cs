@@ -61,6 +61,9 @@ public sealed class QlVersionJson
     /// <summary>所需 Java 大版本；fabric profile 不带（合并时用 vanilla 的）。</summary>
     public int JavaMajor { get; set; }
 
+    /// <summary>Mojang 运行时组件名（如 java-runtime-gamma）；缺省按 gamma 处理。</summary>
+    public string? JavaComponent { get; set; }
+
     public string? AssetIndexId { get; set; }
     public string? AssetIndexUrl { get; set; }
     public string? AssetIndexSha1 { get; set; }
@@ -88,7 +91,10 @@ public sealed class QlVersionJson
         v.MainClass = StrOr(root, "mainClass") ?? "";
         if (root.TryGetProperty("inheritsFrom", out var ih)) v.InheritsFrom = ih.GetString();
         if (root.TryGetProperty("javaVersion", out var jv))
+        {
             v.JavaMajor = jv.TryGetProperty("majorVersion", out var mj) ? mj.GetInt32() : 0;
+            v.JavaComponent = StrOr(jv, "component");
+        }
 
         if (root.TryGetProperty("downloads", out var dl) && dl.TryGetProperty("client", out var cl))
         {
@@ -219,6 +225,7 @@ public sealed class QlVersionJson
             MainClass = !string.IsNullOrEmpty(fabric.MainClass) ? fabric.MainClass : vanilla.MainClass,
             InheritsFrom = fabric.InheritsFrom ?? vanilla.Id,
             JavaMajor = vanilla.JavaMajor,
+            JavaComponent = vanilla.JavaComponent,
             AssetIndexId = vanilla.AssetIndexId,
             AssetIndexUrl = vanilla.AssetIndexUrl,
             AssetIndexSha1 = vanilla.AssetIndexSha1,

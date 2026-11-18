@@ -26,14 +26,17 @@ public static class QlArgsBuilder
 
         var args = new List<string> { "-Xmx" + maxMemoryMb + "M" };
         Append(args, prep.JvmArgs, vars);
+
+        // log4j 是 JVM 选项，必须落在主类之前（Mojang logging.client.argument 的实际形态）。
+        if (!string.IsNullOrEmpty(prep.LogConfigFile))
+            args.Add("-Dlog4j.configurationFile=" + prep.LogConfigFile);
+
+        // 主类处于 JVM 参数与游戏参数之间——少了这一句，--username 会被 java 当成 JVM 选项。
+        args.Add(prep.MainClass);
         Append(args, prep.GameArgs, vars);
 
         // 空值的可选对（--clientId/--xuid，离线没有这俩）整对剔除。放在两边模板拼完之后。
         StripEmptyOptionals(args, "--clientId", "--xuid");
-
-        // log4j 配置在手则显式追加（Mojang logging.client.argument 的实际形态）。
-        if (!string.IsNullOrEmpty(prep.LogConfigFile))
-            args.Add("-Dlog4j.configurationFile=" + prep.LogConfigFile);
         return args;
     }
 

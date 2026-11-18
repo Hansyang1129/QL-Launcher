@@ -178,9 +178,11 @@ public static class QlLaunchPrep
     // ───────────────────── 收尾 ─────────────────────
 
     /// <summary>解 natives、组类路径，产出供参数生成/进程启动的套餐。幂等（重复调用只重解压）。</summary>
-    public static QlPrepResult Finalize(QlVersionJson m, string gameDir)
+    /// <param name="gameDir">基础设施目录：libraries/ assets/ versions/ 所在处（版本隔离时是游戏根目录）。</param>
+    /// <param name="nativesDir">natives 解压目录；空 = <paramref name="gameDir"/> 下的 natives-windows。</param>
+    public static QlPrepResult Finalize(QlVersionJson m, string gameDir, string? nativesDir = null)
     {
-        var nativesDir = Path.Combine(gameDir, "natives-windows");
+        nativesDir ??= Path.Combine(gameDir, "natives-windows");
         Directory.CreateDirectory(nativesDir);
         var libsDir = Path.Combine(gameDir, "libraries");
         var archWant = NativeClassifierForArch();

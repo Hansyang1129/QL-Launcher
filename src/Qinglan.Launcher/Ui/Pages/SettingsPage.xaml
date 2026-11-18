@@ -4,14 +4,14 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel MaxWidth="820" HorizontalAlignment="Left">
             <TextBlock Text="设置" Style="{StaticResource PageTitle}"/>
-            <TextBlock Text="只保留够用的：游戏根目录、调试入口。其余（内存 / Java）导入 M2 一并接。"
+            <TextBlock Text="只保留够用的：游戏根目录、Java、微软登录（可选）与调试入口。"
                        Style="{StaticResource PageHint}" Margin="0,4,0,16"/>
 
             <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                 <StackPanel>
                     <TextBlock Text="游戏根目录" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
                     <TextBlock Style="{StaticResource PageHint}" Margin="0,6,0,8" TextWrapping="Wrap"
-                               Text="游戏根目录（.minecraft）。启动器只管理其中的 Qinglan-2nd-RPU 实例（版本隔离感知，平铺布局兼容）。同步、启动（M2）都以它为准。"/>
+                               Text="游戏根目录（.minecraft）。启动器只管理其中的 Qinglan-2nd-RPU 实例（版本隔离感知，平铺布局兼容）。同步与启动都以它为准。"/>
                     <TextBlock x:Name="GameDirText" FontFamily="Consolas" FontSize="13" TextWrapping="Wrap"
                                Foreground="{StaticResource TextPrimary}" Margin="0,0,0,10" Text="（未设置）"/>
                     <WrapPanel>
@@ -24,11 +24,47 @@
                 </StackPanel>
             </Border>
 
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="Java 运行环境" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
+                    <TextBlock Style="{StaticResource PageHint}" Margin="0,6,0,8" TextWrapping="Wrap"
+                               Text="自动探测会扫描 JAVA_HOME、Program Files 下的常见 JDK/JRE、PATH 与启动器下载的运行时。也可以手工指定包含 bin\java.exe 的目录。"/>
+                    <TextBlock x:Name="JavaDirText" FontFamily="Consolas" FontSize="13" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextPrimary}" Margin="0,0,0,4" Text="自动探测"/>
+                    <TextBlock x:Name="JavaStatusText" Style="{StaticResource PageHint}" Margin="0,0,0,10" Text=""/>
+                    <WrapPanel>
+                        <Button x:Name="BtnPickJava" Content="选择 Java 目录…" Style="{StaticResource BtnGhost}"
+                                Click="OnPickJava"/>
+                        <Button x:Name="BtnAutoJava" Content="恢复自动探测" Style="{StaticResource BtnGhost}"
+                                Margin="10,0,0,0" Click="OnAutoJava"/>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="微软登录（可选）" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
+                    <TextBlock Style="{StaticResource PageHint}" Margin="0,6,0,8" TextWrapping="Wrap"
+                               Text="填写 Azure 应用的 client id 后，首页会出现「登录微软账号」（设备码流程）。留空则只用离线账号；离线模式不适用于正版验证服务器。"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="ClientIdBox" Style="{StaticResource InputBorder}"
+                                 VerticalContentAlignment="Center"/>
+                        <Button x:Name="BtnSaveClientId" Grid.Column="1" Content="保存" Style="{StaticResource BtnGhost}"
+                                Margin="8,0,0,0" Click="OnSaveClientId"/>
+                    </Grid>
+                    <TextBlock x:Name="ClientIdStatusText" Style="{StaticResource PageHint}" Margin="0,8,0,0" Text=""/>
+                </StackPanel>
+            </Border>
+
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="关于" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
                     <TextBlock Style="{StaticResource PageHint}" Margin="0,8,0,0" TextWrapping="Wrap"
-                               Text="轻蓝启动器 1.0.0 —— 为「轻蓝 MTR 2.0」社区定制的轻量启动器。&#x0a;同步方式：包驱动（.mrpack 即更新源，单一 mods 频道 + 可选组），与 QL-HMCL 新版引擎互通。&#x0a;登录与启动链在 M2 到货；MTR 轨交页、论坛页在 v1.1。"/>
+                               Text="轻蓝启动器 1.0.0 —— 为「轻蓝 MTR 2.0」社区定制的轻量启动器。&#x0a;同步方式：包驱动（.mrpack 即更新源，单一 mods 频道 + 可选组），与 QL-HMCL 新版引擎互通。&#x0a;启动链：整合包版本 JSON + Mojang 规则裁剪 + 缺才下 + Mojang 运行时自动下载；支持离线与微软设备码登录。&#x0a;MTR 轨交页、论坛页在 v1.1。"/>
                 </StackPanel>
             </Border>
         </StackPanel>

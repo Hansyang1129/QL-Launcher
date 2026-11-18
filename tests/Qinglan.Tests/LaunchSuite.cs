@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using Qinglan.Launcher.Core;
 using Qinglan.Launcher.Core.Launch;
 
 namespace Qinglan.Tests;
@@ -104,6 +105,7 @@ internal static class LaunchSuite
         T.CheckEq("MainClass 取 fabric 的", "net.fabricmc.loader.impl.launch.knot.KnotClient", merge.MainClass);
         T.CheckEq("合并后的 Id", "fabric-loader-0.20.1-1.20.1", merge.Id);
         T.CheckEq("Java 大版本取 vanilla", 17, merge.JavaMajor);
+        T.CheckEq("Java 运行时组件取 vanilla", "java-runtime-gamma", merge.JavaComponent);
         T.CheckEq("资源索引 id", "5x", merge.AssetIndexId);
         T.Check("重复条目去重（7 条原始→6 唯一）", merge.Libraries.Count == 6);
         T.Check("fabric 无 game args → 采用 vanilla 的", merge.GameArgs.Any(a =>
@@ -181,8 +183,12 @@ internal static class LaunchSuite
         T.Check("feature 参数不出现（demo/resolution）",
             !args.Contains("--demo") && !args.Any(a => a.StartsWith("--width")));
         T.Check("无残留变量", !args.Any(a => a.Contains("${")));
-        T.Check("log4j 参数收尾", args[^1].StartsWith("-Dlog4j.configurationFile=") &&
-            args[^1].Contains("log_configs"));
+        int mainIdx = args.IndexOf(prep.MainClass);
+        T.CheckEq("主类出现一次", 1, args.Count(a => a == prep.MainClass));
+        T.Check("主类位于 JVM 参数与游戏参数之间",
+            mainIdx > args.IndexOf("-cp") + 1 && mainIdx < IdxOf("--username"));
+        int logIdx = args.FindIndex(a => a.StartsWith("-Dlog4j.configurationFile="));
+        T.Check("log4j 参数在主类之前（JVM 选项）", logIdx > 0 && logIdx < mainIdx);
 
         // ───────── Java 解析 + 进程壳 ─────────
         T.Group("M2 Java 解析与进程壳");
@@ -207,6 +213,53 @@ internal static class LaunchSuite
         }
         T.CheckEq("退出码透传", 42, exitCode);
         T.Check("行流捕获", lines.Any(s => s.Contains("ql-proc-ok")));
+
+        // ───────── M2b-2 首页接线地基 ─────────
+        T.Group("M2b-2 首页接线地基");
+        T.CheckEq("自动内存 4GB 落到下限", 2048, QlMemory.AutoMb(4L * 1024 * 1024 * 1024));
+        T.CheckEq("自动内存 16GB 取四分之一", 4096, QlMemory.AutoMb(16L * 1024 * 1024 * 1024));
+        T.CheckEq("自动内存 64GB 封顶", 8192, QlMemory.AutoMb(64L * 1024 * 1024 * 1024));
+        T.CheckEq("自动内存 取不到内存给下限", 2048, QlMemory.AutoMb(0));
+        T.CheckEq("配置内存优先于自动", 12288, QlMemory.EffectiveMb(12288, 16L * 1024 * 1024 * 1024));
+
+        var customNatives = Path.Combine(gameDir, "natives-custom");
+        var prepCustom = QlLaunchPrep.Finalize(merge, gameDir, customNatives);
+        T.Check("natives 目录可覆盖（版本隔离用）", prepCustom.NativesDir == customNatives &&
+            File.Exists(Path.Combine(customNatives, wantDll)));
+
+        var cfgDir = Fx.TempDir();
+        new QlConfig
+        {
+            PlayerName = "Steve",
+            MicrosoftClientId = "abc-123",
+            MicrosoftAccountName = "Alex",
+            MaxMemoryMb = 6144,
+        }.Save(cfgDir);
+        var cfg = QlConfig.Load(cfgDir);
+        T.CheckEq("配置往返：玩家名", "Steve", cfg.PlayerName);
+        T.CheckEq("配置往返：client id", "abc-123", cfg.MicrosoftClientId);
+        T.CheckEq("配置往返：微软账号名", "Alex", cfg.MicrosoftAccountName);
+        T.CheckEq("配置往返：内存上限", 6144, cfg.MaxMemoryMb);
+
+        // ───────── M2b-2 日志整形 ─────────
+        T.Group("M2b-2 日志整形");
+        var xml = new QlLogXml();
+        var eventLines = new[]
+        {
+            "<log4j:Event logger=\"net.minecraft.class_2966\" timestamp=\"1794994420554\" level=\"INFO\" thread=\"main\">",
+            "  <log4j:Message><![CDATA[Vanilla bootstrap took 3681 milliseconds]]></log4j:Message>",
+            "</log4j:Event>",
+        };
+        T.CheckEq("XML 事件首行先暂存", 0, xml.Feed(eventLines[0]).Length);
+        T.CheckEq("事件中间不吐行", 0, xml.Feed(eventLines[1]).Length);
+        var done = xml.Feed(eventLines[2]);
+        T.CheckEq("事件收尾吐一行", 1, done.Length);
+        T.CheckEq("事件文本 = latest.log 同款", "[main/INFO]: Vanilla bootstrap took 3681 milliseconds", done[0]);
+        T.CheckEq("非 XML 行原样透传", 1, xml.Feed("plain jvm stderr").Length);
+        T.CheckEq("多行消息保留换行",
+            "[Render thread/ERROR]: boom\nat a.b(C.java:1)",
+            QlLogXml.Parse("<log4j:Event level=\"ERROR\" thread=\"Render thread\"><log4j:Message><![CDATA[boom]]></log4j:Message>" +
+                           "<log4j:Throwable><![CDATA[at a.b(C.java:1)]]></log4j:Throwable></log4j:Event>"));
     }
 
     private static byte[] ZipOf(params (string Name, string Content)[] entries)

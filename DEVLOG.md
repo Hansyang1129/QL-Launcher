@@ -207,3 +207,34 @@
   标题「版本隔离」正确、可选组仅 axiom 勾选、查更新「已是最新：26.9.1（无需操作）」、
   应用后「同步完成：下载 3 · 未变 243」且进度条停在 50%（Java 双计数同款）。测试 **390/390 全绿**，
   构建 0 错 0 警。下一步：M2b-2 启动 UI 接线 → M3 状态页 → M4 发布。
+- **2026-11-18 M2b-2 启动 UI 接线**：首页重做成启动台（左右两栏）——左列实例卡（包名·版本来自
+  dblpack/sync state、布局与实例路径）+ 账号卡（离线名 / 微软设备码登录浮层：代码复制、跳转登录页、
+  关窗取消；页面加载静默 refresh_token 续期，恢复失败明确提示；「退出登录」回离线）+ 运行环境
+  （内存下拉 + Java 探测行）+ 启动卡（启动/取消准备/结束游戏、进度条、状态行）；右列启动日志
+  （TextBox 自动换行 + 200k 字符截断 + 自动滚底 + 清空/打开目录；占位文案首次输出时清掉）。
+  设置页加 Java 目录选择/恢复自动探测（落盘前校验 bin\java.exe）与微软 client id 保存入口。
+  引擎侧小口子：`QlVersionJson.JavaComponent` 解析+合并；`QlLaunchPrep.Finalize` 增加可选
+  `nativesDir`（版本隔离实例的 natives 落 `versions/Qinglan-2nd-RPU/natives-windows`，避免污染
+  根目录）；`QlJavaLocator` 递归扫 `data/runtimes` 的 bin/java.exe（Mojang 清单的组件前缀子目录
+  不再漏）；新 `QlMemory`（0 = 物理内存 1/4 夹 [2048, 8192]，本机自动 7628 MB）；`QlConfig` 加
+  `microsoftClientId` / `microsoftAccountName` / `playerName`。离线名默认取 `Environment.UserName`
+  清洗后前 16 位（本机 <player>），首次启动落盘。
+  **抓到一个致命老 bug**：`QlArgsBuilder` 从未把主类插进 argv，整套游戏参数被 java 当成 JVM
+  选项 → `Unrecognized option: --username` + `Could not create the Java Virtual Machine`。
+  正确顺序固定为：`-Xmx` + JVM 模板参数 → `-Dlog4j.configurationFile`（JVM 选项）→ 主类 →
+  游戏参数，空值可选对（--clientId/--xuid）在最后整对剔除；补了主类唯一性/位置断言。
+  控制台日志是 Mojang `LegacyXMLLayout` 跨行 XML，日志面板观感极差：新 `QlLogXml` 把
+  `<log4j:Event>` 事件还原成 latest.log 同款 `[thread/LEVEL]: message`（Throwable 换行保留，
+  非 XML 行透传，收尾不全时原文兜底），只做展示层整形，不动游戏 log4j 配置、不落盘。
+  真实例实测（`<gameDir>\.minecraft`，基础设施本来就全：libraries 324 文件、assets 9361 文件、
+  64 个适用库与 3598 个资源对象全在位）：缺件只剩 `assets/log_configs/client-1.12.xml` 一个，
+  自动补齐后装配 96 库/59 段类路径；Java 自动选中系统 `C:\Program Files\Java\jdk-21`（1.20.1
+  只需 17+），Mojang 运行时下载路径仍留作无 Java 时兜底（引擎已测，本轮未触发）。
+  UIA E2E（`ql-tmp/e2e-launch.ps1`）：`ql-tmp/e2e-launch/01-home|02-preparing|03-running|
+  04-exited|05-settings.png`——日志已是可读纯文本（199 mods、Sodium/NVIDIA+AMD 适配器、
+  MemoryLeakFix 等），结束游戏后 UI 回空闲。完整进游戏验证（`ql-tmp/e2e-game-boot.ps1`）：
+  游戏窗口 `Minecraft* 1.20.1` 起来并捕获 `ql-tmp/e2e-boot/06-game-window.png`（窗口内是 RPU
+  自己的「在线授权与获取发布」启动闸门，属闭源组件流程，启动器不介入）。微软登录本轮
+  client id 为空未实机走设备码（引擎在 M2b-1 已覆盖）；实际用离线账号 <player> 打通全链。
+  测试 **409/409 全绿**（390 + 19：Java 组件传递/内存策略/natives 覆盖/配置往返/日志整形/
+  参数顺序），构建 0 错 0 警。下一步：M3 服务器状态页 → M4 发布打包。

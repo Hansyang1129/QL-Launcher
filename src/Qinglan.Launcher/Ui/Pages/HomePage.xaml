@@ -9,24 +9,186 @@
             </LinearGradientBrush>
         </Grid.Background>
         <Image x:Name="Wallpaper" Stretch="UniformToFill" Visibility="Collapsed"/>
-        <Border Background="#AAFFFFFF" CornerRadius="14" Margin="70,40" Padding="10">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <TextBlock Text="轻蓝 MTR 2.0" FontFamily="Microsoft YaHei UI" FontSize="30"
-                           FontWeight="ExtraBold" Foreground="{StaticResource TextPrimary}"
-                           HorizontalAlignment="Center"/>
-                <TextBlock x:Name="PackInfo" Text="尚未连接实例 · 先到「轻蓝同步」导入整合包"
-                           FontSize="13" Foreground="{StaticResource TextSecondary}"
-                           HorizontalAlignment="Center" Margin="0,6,0,0"
-                           FontFamily="Microsoft YaHei UI"/>
-                <Button x:Name="LaunchButton" Content="启动游戏"
-                        Style="{StaticResource BtnPrimary}" FontSize="17" FontWeight="Bold"
-                        Padding="64,14" Margin="0,34,0,0" Click="OnLaunch"
-                        HorizontalAlignment="Center" FontFamily="Microsoft YaHei UI"/>
-                <TextBlock x:Name="LaunchHint" Text="" FontSize="12" Margin="0,10,0,0"
-                           Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"
-                           HorizontalAlignment="Center" MaxWidth="420" TextAlignment="Center"
-                           FontFamily="Microsoft YaHei UI"/>
-            </StackPanel>
-        </Border>
+
+        <Grid Margin="24,20,24,18">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.25*"/>
+                <ColumnDefinition Width="0.95*" MinWidth="280"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ======== 左列：实例 / 账号 / 运行环境 / 启动 ======== -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,14,0">
+                <StackPanel>
+                    <Border Background="#D9FFFFFF" CornerRadius="14" Padding="18" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="轻蓝 MTR 2.0" FontFamily="Microsoft YaHei UI" FontSize="28"
+                                       FontWeight="ExtraBold" Foreground="{StaticResource TextPrimary}"/>
+                            <TextBlock x:Name="PackInfo" Text="正在读取实例…" FontSize="13"
+                                       Foreground="{StaticResource TextSecondary}" Margin="0,4,0,0"
+                                       FontFamily="Microsoft YaHei UI"/>
+                            <TextBlock x:Name="InstanceInfo" Text="" FontSize="11" Margin="0,3,0,0"
+                                       Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"
+                                       FontFamily="Consolas"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 账号 -->
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <Grid>
+                                <TextBlock Text="账号" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
+                                <TextBlock x:Name="AccountState" Text="离线模式" HorizontalAlignment="Right"
+                                           FontSize="12" Foreground="{StaticResource TextSecondary}"
+                                           FontFamily="Microsoft YaHei UI"/>
+                            </Grid>
+                            <Grid x:Name="OfflinePanel" Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="离线玩家名" VerticalAlignment="Center" FontSize="13"
+                                           Foreground="{StaticResource TextSecondary}"
+                                           FontFamily="Microsoft YaHei UI"/>
+                                <TextBox x:Name="PlayerNameBox" Grid.Column="1" Style="{StaticResource InputBorder}"
+                                         MaxLength="16" Margin="10,0" VerticalContentAlignment="Center"/>
+                                <Button x:Name="BtnMsLogin" Grid.Column="2" Content="登录微软账号"
+                                        Style="{StaticResource BtnGhost}" Click="OnMsLogin"/>
+                            </Grid>
+                            <StackPanel x:Name="MsPanel" Visibility="Collapsed" Orientation="Horizontal" Margin="0,12,0,0">
+                                <TextBlock x:Name="MsAccountText" VerticalAlignment="Center" FontSize="13"
+                                           FontWeight="Bold" Foreground="{StaticResource OkGreen}"
+                                           FontFamily="Microsoft YaHei UI"/>
+                                <Button x:Name="BtnLogout" Content="退出登录" Style="{StaticResource BtnGhost}"
+                                        Margin="12,0,0,0" Click="OnLogout"/>
+                            </StackPanel>
+                            <TextBlock x:Name="AccountHint" Style="{StaticResource PageHint}" Margin="0,8,0,0"
+                                       Text="离线模式可直接启动；正版账号可登录微软。"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 运行环境 -->
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="运行环境" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="150"/>
+                                    <ColumnDefinition Width="18"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="内存上限" VerticalAlignment="Center" FontSize="13"
+                                           Foreground="{StaticResource TextSecondary}"
+                                           FontFamily="Microsoft YaHei UI"/>
+                                <ComboBox x:Name="MemoryBox" Grid.Column="1" Style="{StaticResource ComboBoxFlat}"
+                                          SelectionChanged="OnMemoryChanged"/>
+                                <TextBlock Grid.Column="3" Text="Java" VerticalAlignment="Center" FontSize="13"
+                                           Foreground="{StaticResource TextSecondary}"
+                                           FontFamily="Microsoft YaHei UI"/>
+                                <TextBlock x:Name="JavaText" Grid.Column="4" Text="探测中…" Margin="10,0,0,0"
+                                           VerticalAlignment="Center" FontSize="12" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextPrimary}"
+                                           ToolTipService.ShowDuration="30000"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 启动 -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="LaunchButton" Content="启动游戏" Style="{StaticResource BtnPrimary}"
+                                        FontSize="17" FontWeight="Bold" Padding="48,13" Click="OnLaunch"
+                                        FontFamily="Microsoft YaHei UI"/>
+                                <Button x:Name="BtnKillGame" Grid.Column="1" Content="结束游戏"
+                                        Style="{StaticResource BtnGhost}" Padding="16,13" Margin="10,0,0,0"
+                                        Visibility="Collapsed" Click="OnKillGame"/>
+                            </Grid>
+                            <ProgressBar x:Name="LaunchBar" Height="6" Minimum="0" Maximum="100" Margin="0,12,0,0"
+                                         Visibility="Collapsed"/>
+                            <Grid Margin="0,8,0,0">
+                                <TextBlock x:Name="LaunchStatus" Style="{StaticResource PageHint}" Text=""/>
+                                <Button x:Name="BtnCancelPrep" Content="取消准备" Style="{StaticResource BtnGhost}"
+                                        HorizontalAlignment="Right" Padding="10,4" FontSize="12"
+                                        Visibility="Collapsed" Click="OnCancelPrep"/>
+                            </Grid>
+                            <TextBlock x:Name="LaunchHint" Style="{StaticResource PageHint}" Margin="0,6,0,0"
+                                       Text="启动前会自动补齐缺失的启动文件；首次运行可能需要下载 Java 运行时。"/>
+                            <WrapPanel Margin="0,10,0,0">
+                                <Button x:Name="BtnGoSync" Content="去同步整合包" Style="{StaticResource BtnGhost}"
+                                        Visibility="Collapsed" Click="OnGoSync"/>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ======== 右列：启动日志 ======== -->
+            <Border Grid.Column="1" Style="{StaticResource Card}" Padding="0">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" Margin="14,12,14,8">
+                        <TextBlock Text="启动日志" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
+                        <Button x:Name="BtnClearLog" Content="清空" Style="{StaticResource BtnGhost}"
+                                HorizontalAlignment="Right" Padding="10,3" FontSize="12" Click="OnClearLog"/>
+                    </Grid>
+                    <WrapPanel DockPanel.Dock="Bottom" Margin="14,8,14,12">
+                        <Button x:Name="BtnOpenGameDir" Content="游戏目录" Style="{StaticResource BtnGhost}"
+                                Padding="10,5" FontSize="12" Click="OnOpenGameDir"/>
+                        <Button x:Name="BtnOpenLogDir" Content="启动器日志" Style="{StaticResource BtnGhost}"
+                                Padding="10,5" FontSize="12" Margin="8,0,0,0" Click="OnOpenLogDir"/>
+                    </WrapPanel>
+                    <Border Margin="12,0,12,0" CornerRadius="8" Background="#F7FAFF"
+                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1">
+                        <TextBox x:Name="LaunchLog" IsReadOnly="True" BorderThickness="0"
+                                 Background="Transparent" FontFamily="Consolas" FontSize="11"
+                                 Foreground="{StaticResource TextPrimary}" TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 Padding="8" Text="（启动器与游戏输出会显示在这里）"/>
+                    </Border>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- ======== 微软设备码登录浮层 ======== -->
+        <Grid x:Name="LoginOverlay" Visibility="Collapsed" Background="#73102133">
+            <Border Background="White" CornerRadius="14" Padding="22" Width="470"
+                    VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="26" ShadowDepth="2" Opacity="0.28"/>
+                </Border.Effect>
+                <StackPanel>
+                    <Grid>
+                        <TextBlock Text="登录微软账号" FontSize="18" FontWeight="Bold"
+                                   FontFamily="Microsoft YaHei UI" VerticalAlignment="Center"/>
+                        <Button x:Name="BtnCloseLogin" Content="&#xE8BB;" FontFamily="Segoe MDL2 Assets"
+                                Style="{StaticResource BtnGhost}" HorizontalAlignment="Right"
+                                Padding="9,4" FontSize="11" Click="OnCloseLogin"/>
+                    </Grid>
+                    <TextBlock Style="{StaticResource PageHint}" Margin="0,8,0,12"
+                               Text="在浏览器打开下面的网址，输入设备代码完成授权。授权成功后此窗口会自动关闭。"/>
+                    <TextBlock Text="设备代码" FontSize="12" Foreground="{StaticResource TextSecondary}"
+                               FontFamily="Microsoft YaHei UI"/>
+                    <Border Background="#F0F6FF" CornerRadius="8" Padding="12" Margin="0,6,0,10">
+                        <TextBlock x:Name="UserCodeText" Text="……" FontFamily="Consolas" FontSize="24"
+                                   FontWeight="Bold" Foreground="{StaticResource AccentDeep}"
+                                   HorizontalAlignment="Center"/>
+                    </Border>
+                    <WrapPanel>
+                        <Button x:Name="BtnCopyCode" Content="复制代码" Style="{StaticResource BtnGhost}"
+                                Click="OnCopyCode"/>
+                        <Button x:Name="BtnOpenVerify" Content="打开微软登录页" Style="{StaticResource BtnPrimary}"
+                                Margin="8,0,0,0" IsEnabled="False" Click="OnOpenVerify"/>
+                    </WrapPanel>
+                    <TextBlock x:Name="LoginStatusText" Style="{StaticResource PageHint}" Margin="0,12,0,0"
+                               Text="正在申请设备码…"/>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>
