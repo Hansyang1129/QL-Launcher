@@ -295,7 +295,11 @@ public static class QlMtr
         return group;
     }
 
-    /// <summary>把时刻表包展开成某站点的下一批发车。</summary>
+    /// <summary>
+    /// 把时刻表包展开成某站点最近的一批到站。筛选按<b>到站</b>时间而非首站发车时间：
+    /// 已经驶离首站但尚未抵达该站的在途列车同样计入，这样每个车站展示的是本站最近一班，
+    /// 而不是某一班车整条线路的行程。
+    /// </summary>
     /// <param name="departures">时刻表包。</param>
     /// <param name="route">线路。</param>
     /// <param name="stopIndex">线路内第几站（0 起）。</param>
@@ -316,15 +320,15 @@ public static class QlMtr
             foreach (long offset in group.Offsets)
             {
                 long departureAt = departures.Time + offset;
-                if (departureAt < now - 60_000) continue;
-                result.Add(new QlMtrTimedDeparture(departureAt, departureAt + offsetToStop,
-                    group.Deviation));
+                long arrivalAt = departureAt + offsetToStop;
+                if (arrivalAt < now - 60_000) continue;
+                result.Add(new QlMtrTimedDeparture(departureAt, arrivalAt, group.Deviation));
             }
         }
         result.Sort((a, b) =>
         {
-            int byDeparture = a.DepartureAt.CompareTo(b.DepartureAt);
-            return byDeparture != 0 ? byDeparture : a.ArrivalAt.CompareTo(b.ArrivalAt);
+            int byArrival = a.ArrivalAt.CompareTo(b.ArrivalAt);
+            return byArrival != 0 ? byArrival : a.DepartureAt.CompareTo(b.DepartureAt);
         });
         if (result.Count > limit) result.RemoveRange(limit, result.Count - limit);
         return result;

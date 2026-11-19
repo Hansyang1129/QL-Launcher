@@ -156,6 +156,14 @@ internal static class MtrSuite
         var late = QlMtr.NextAt(departures, route, 1, 1400000, 5);
         T.Check("超过一分钟的旧班次被过滤", late.Count == 0);
 
+        // 已驶离首站、尚未抵达本站的在途列车仍应算作本站的下一班。
+        var enRoute = QlMtr.NextAt(departures, route, 1, 1100000, 1);
+        T.CheckEq("在途列车计入下游车站", 1, enRoute.Count);
+        T.CheckEq("在途列车按到站时间命中", 1120000L, enRoute[0].ArrivalAt);
+        var deepStop = QlMtr.NextAt(departures, route, 2, 1150000, 1);
+        T.CheckEq("第三站取本站最近一班", 1300000L, deepStop[0].ArrivalAt);
+        T.CheckEq("第三站对应首班发车", 1000000L, deepStop[0].DepartureAt);
+
         var unknown = QlMtr.NextAt(departures, new QlMtrRoute("00000000000000FF", "无|None", 0, "",
             false, "NONE", Array.Empty<QlMtrRouteStop>(), Array.Empty<long>()), 0, 1000000, 5);
         T.Check("未知线路返回空表", unknown.Count == 0);
