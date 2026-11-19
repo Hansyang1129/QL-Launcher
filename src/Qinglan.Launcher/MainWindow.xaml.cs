@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using Qinglan.Launcher.Core;
 
 namespace Qinglan.Launcher;
 
@@ -19,8 +20,32 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ApplyWindowSize();
         _current = this;
         Navigate(PageKey.Home);
+    }
+
+    /// <summary>应用设置页保存的窗口预设；超过工作区时夹到屏幕内。</summary>
+    private void ApplyWindowSize()
+    {
+        try
+        {
+            var cfg = QlConfig.Load(App.ConfigDir);
+            double width = Math.Max(MinWidth, cfg.WindowWidth);
+            double height = Math.Max(MinHeight, cfg.WindowHeight);
+            var work = SystemParameters.WorkArea;
+            if (work.Width > 0 && work.Height > 0)
+            {
+                width = Math.Min(width, Math.Max(MinWidth, work.Width - 40));
+                height = Math.Min(height, Math.Max(MinHeight, work.Height - 40));
+            }
+            Width = width;
+            Height = height;
+        }
+        catch
+        {
+            // 配置不可读时保持 XAML 的 1040×680。
+        }
     }
 
     /// <summary>当前主窗实例，供页面跳转（如引导页跳转同步页）。</summary>

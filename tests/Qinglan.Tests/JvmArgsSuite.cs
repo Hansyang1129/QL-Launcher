@@ -20,6 +20,8 @@ internal static class JvmArgsSuite
         Assembly();
         T.Group("R2 JVM：本地持久化");
         Persistence();
+        T.Group("R2 内存：启动前整理");
+        T.Check("TrimAll 不抛异常", QlMemoryOptimizer.TrimAll(50) >= 0);
     }
 
     private static void EmptyAndDefault()
@@ -157,6 +159,20 @@ internal static class JvmArgsSuite
         var customDir = Fx.TempDir();
         new QlConfig { UseVersionJvmArgs = false }.Save(customDir);
         T.Check("关闭版本 JVM 参数可往返", !QlConfig.Load(customDir).UseVersionJvmArgs);
+
+        var uiDir = Fx.TempDir();
+        new QlConfig
+        {
+            WindowWidth = 1280,
+            WindowHeight = 800,
+            OptimizeMemoryBeforeLaunch = true,
+        }.Save(uiDir);
+        var uiCfg = QlConfig.Load(uiDir);
+        T.CheckEq("窗口宽度往返", 1280, uiCfg.WindowWidth);
+        T.CheckEq("窗口高度往返", 800, uiCfg.WindowHeight);
+        T.Check("启动前内存优化开关往返", uiCfg.OptimizeMemoryBeforeLaunch);
+        T.CheckEq("窗口默认宽度", 1040, new QlConfig().WindowWidth);
+        T.CheckEq("窗口默认高度", 680, new QlConfig().WindowHeight);
     }
 
     private static QlPrepResult Prep()

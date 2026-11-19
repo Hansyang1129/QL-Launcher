@@ -9,6 +9,16 @@
 
             <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                 <StackPanel>
+                    <TextBlock Text="窗口大小" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
+                    <TextBlock Style="{StaticResource PageHint}" Margin="0,6,0,8" TextWrapping="Wrap"
+                               Text="下次启动生效；选择后会立即调整当前窗口。超过屏幕工作区时会自动夹到屏幕内。"/>
+                    <ComboBox x:Name="WindowSizeBox" Style="{StaticResource ComboBoxFlat}" Width="240"
+                              SelectionChanged="OnWindowSizeChanged"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
                     <TextBlock Text="游戏根目录" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
                     <TextBlock Style="{StaticResource PageHint}" Margin="0,6,0,8" TextWrapping="Wrap"
                                Text="游戏根目录（.minecraft）。启动器只管理其中的 Qinglan-2nd-RPU 实例（版本隔离感知，平铺布局兼容）。同步与启动都以它为准。"/>
@@ -58,7 +68,7 @@
                         <TextBox x:Name="MemoryInputBox" Grid.Column="1" Style="{StaticResource InputBorder}"
                                  Margin="10,0" VerticalContentAlignment="Center"
                                  TextChanged="OnJvmInputChanged"/>
-                        <TextBlock Grid.Column="2" Text="MB；留空 = 自动（物理内存 1/4，夹 2048–8192）"
+                        <TextBlock Grid.Column="2" Text="MB；留空 = 自动（按可用内存与模组数估算）"
                                    VerticalAlignment="Center" FontSize="12"
                                    Foreground="{StaticResource TextSecondary}"
                                    FontFamily="Microsoft YaHei UI" TextWrapping="Wrap"/>
@@ -77,6 +87,13 @@
                         <Button Content="16384 MB" Tag="16384" Style="{StaticResource BtnGhost}"
                                 Margin="6,0,0,0" Click="OnMemoryPreset"/>
                     </WrapPanel>
+
+                    <CheckBox x:Name="OptimizeMemoryCheck"
+                              Content="启动游戏前进行内存优化（可能延长启动时间）"
+                              Margin="0,10,0,0" Checked="OnOptimizeMemoryChanged"
+                              Unchecked="OnOptimizeMemoryChanged"/>
+                    <TextBlock Style="{StaticResource PageHint}" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Text="整理可访问进程的工作集；部分系统进程需要管理员权限，失败会跳过。"/>
 
                     <TextBlock Text="额外 JVM 参数" Margin="0,12,0,4" FontSize="13"
                                Foreground="{StaticResource TextSecondary}"

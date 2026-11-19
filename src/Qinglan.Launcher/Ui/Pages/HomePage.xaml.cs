@@ -96,7 +96,9 @@ public partial class HomePage : UserControl
         try
         {
             PlayerNameBox.Text = (_config.PlayerName ?? "").Trim();
-            RebuildMemoryChoices();
+            var memoryStatus = QlMemory.ReadStatus();
+            int autoMb = QlMemory.AutoMb(QlMemory.CountMods(_runDir), memoryStatus);
+            RebuildMemoryChoices(autoMb);
         }
         finally
         {
@@ -420,7 +422,9 @@ public partial class HomePage : UserControl
                 Path.Combine(runDir, "natives-windows")), ct);
 
             var profile = await ResolveProfileAsync(ct);
-            var memory = QlMemory.EffectiveMb(_config.MaxMemoryMb, QlMemory.PhysicalBytes());
+            var memoryStatus = QlMemory.ReadStatus();
+            var memory = QlMemory.EffectiveMb(_config.MaxMemoryMb, memoryStatus,
+                QlMemory.CountMods(runDir));
             int finalMemory = memory;
             bool xmxOverridden = false;
             if (QlJvmOptions.TryParse(_config.JvmArgs, memory, out var jvmPlan, out _))
@@ -436,6 +440,20 @@ public partial class HomePage : UserControl
                       profile.Name + "（" + profile.UserType + "）");
             AppendLog("[启动器] 主类 " + prep.MainClass + " · 类路径 " + prep.Classpath.Count +
                       " 段 · 实例 " + runDir);
+
+            if (_config.OptimizeMemoryBeforeLaunch)
+            {
+                Ui(() =>
+                {
+                    LaunchBar.IsIndeterminate = true;
+                    LaunchStatus.Text = "正在优化内存…";
+                });
+                AppendLog("[启动器] 正在优化内存…");
+                Globals.Log("内存优化开始");
+                int trimmed = await Task.Run(() => QlMemoryOptimizer.TrimAll(3000), ct);
+                Globals.Log("内存优化完成: " + trimmed + " 个进程");
+                AppendLog("[启动器] 内存优化完成，尝试整理 " + trimmed + " 个进程。");
+            }
 
             _game = new QlGameProcess(java.ExePath, args, runDir, OnGameLine, OnGameExit);
             launched = true;
@@ -595,7 +613,7 @@ public partial class HomePage : UserControl
     }
 
     /// <summary>首页快捷档位；设置页写入非档位值时追加“自定义：N MB”。</summary>
-    private void RebuildMemoryChoices()
+    private void RebuildMemoryChoices(int autoMb)
     {
         _memoryValues.Clear();
         _memoryValues.Add(0);
@@ -607,7 +625,7 @@ public partial class HomePage : UserControl
         foreach (int value in _memoryValues)
         {
             string label = value == 0
-                ? "自动（推荐）"
+                ? "自动（推荐：" + autoMb + " MB）"
                 : custom && value == _config.MaxMemoryMb
                     ? "自定义：" + value + " MB"
                     : value + " MB";

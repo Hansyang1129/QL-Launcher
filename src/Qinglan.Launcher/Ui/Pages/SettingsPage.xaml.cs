@@ -10,6 +10,14 @@ namespace Qinglan.Launcher.Ui.Pages;
 /// <summary>设置页：游戏目录、Java、JVM/内存、微软 client id（可选）+ 日志/关于。</summary>
 public partial class SettingsPage : UserControl
 {
+    private static readonly (string Label, int Width, int Height)[] WindowPresets =
+    {
+        ("紧凑 940×620", 940, 620),
+        ("标准 1040×680", 1040, 680),
+        ("大 1280×800", 1280, 800),
+        ("超大 1600×900", 1600, 900),
+    };
+
     private bool _loadingSettings;
 
     public SettingsPage() => InitializeComponent();
@@ -32,9 +40,16 @@ public partial class SettingsPage : UserControl
         _loadingSettings = true;
         try
         {
+            WindowSizeBox.Items.Clear();
+            foreach (var preset in WindowPresets) WindowSizeBox.Items.Add(preset.Label);
+            int windowIndex = Array.FindIndex(WindowPresets,
+                preset => preset.Width == cfg.WindowWidth && preset.Height == cfg.WindowHeight);
+            WindowSizeBox.SelectedIndex = windowIndex >= 0 ? windowIndex : 1;
+
             MemoryInputBox.Text = cfg.MaxMemoryMb > 0 ? cfg.MaxMemoryMb.ToString() : "";
             JvmPrettyCheck.IsChecked = cfg.JvmArgsOnePerLine;
             UseVersionJvmCheck.IsChecked = cfg.UseVersionJvmArgs;
+            OptimizeMemoryCheck.IsChecked = cfg.OptimizeMemoryBeforeLaunch;
             JvmArgsBox.AcceptsReturn = cfg.JvmArgsOnePerLine;
             JvmArgsBox.Text = cfg.JvmArgsOnePerLine
                 ? QlJvmOptions.FormatPretty(cfg.JvmArgs)
@@ -45,6 +60,56 @@ public partial class SettingsPage : UserControl
             _loadingSettings = false;
         }
         ValidateJvm(false);
+    }
+
+    private void OnWindowSizeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingSettings || WindowSizeBox.SelectedIndex < 0) return;
+        var preset = WindowPresets[WindowSizeBox.SelectedIndex];
+        try
+        {
+            var cfg = QlConfig.Load(App.ConfigDir);
+            cfg.WindowWidth = preset.Width;
+            cfg.WindowHeight = preset.Height;
+            cfg.Save(App.ConfigDir);
+        }
+        catch (Exception ex)
+        {
+            Globals.Log("窗口大小保存失败: " + ex.Message);
+        }
+
+        try
+        {
+            var window = MainWindow.Instance;
+            var work = SystemParameters.WorkArea;
+            window.Width = work.Width > 0
+                ? Math.Min(preset.Width, Math.Max(window.MinWidth, work.Width - 40))
+                : Math.Max(window.MinWidth, preset.Width);
+            window.Height = work.Height > 0
+                ? Math.Min(preset.Height, Math.Max(window.MinHeight, work.Height - 40))
+                : Math.Max(window.MinHeight, preset.Height);
+        }
+        catch (Exception ex)
+        {
+            Globals.Log("窗口大小应用失败: " + ex.Message);
+        }
+    }
+
+    private void OnOptimizeMemoryChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loadingSettings) return;
+        try
+        {
+            var cfg = QlConfig.Load(App.ConfigDir);
+            cfg.OptimizeMemoryBeforeLaunch = OptimizeMemoryCheck.IsChecked == true;
+            cfg.Save(App.ConfigDir);
+        }
+        catch (Exception ex)
+        {
+            JvmStatusText.Text = "内存优化设置保存失败：" + ex.Message;
+            JvmStatusText.Foreground = (Brush)FindResource("Danger");
+            Globals.Log("内存优化设置保存失败: " + ex.Message);
+        }
     }
 
     private void UpdateJavaStatus(string? javaDir)
@@ -128,14 +193,27 @@ public partial class SettingsPage : UserControl
             JvmStatusText.Text = "已填入版本 JSON 参数并关闭重复注入。" + JvmStatusText.Text;
     }
 
-    private static List<string> LoadMojangJvmArgs()
+    private static (string? RunDir, int ModCount) CurrentInstance()
     {
         try
         {
             var cfg = QlConfig.Load(App.ConfigDir);
             if (string.IsNullOrWhiteSpace(cfg.GameDir) || !Directory.Exists(cfg.GameDir))
-                return new List<string>();
+                return (null, 0);
             var runDir = QlInstances.ResolveRunDir(cfg.GameDir);
+            return (runDir, QlMemory.CountMods(runDir));
+        }
+        catch
+        {
+            return (null, 0);
+        }
+    }
+
+    private static List<string> LoadMojangJvmArgs()
+    {
+        try
+        {
+            var (runDir, _) = CurrentInstance();
             if (runDir is null) return new List<string>();
             var json = Path.Combine(runDir, QlInstances.ManagedInstanceId + ".json");
             if (!File.Exists(json)) return new List<string>();
@@ -177,8 +255,10 @@ public partial class SettingsPage : UserControl
             return false;
         }
 
-        long physicalBytes = QlMemory.PhysicalBytes();
-        int effectiveMb = QlMemory.EffectiveMb(enteredMb, physicalBytes);
+        var (_, modCount) = CurrentInstance();
+        var memoryStatus = QlMemory.ReadStatus();
+        int autoMb = QlMemory.AutoMb(modCount, memoryStatus);
+        int effectiveMb = enteredMb > 0 ? enteredMb : autoMb;
         if (!QlJvmOptions.TryParse(raw, effectiveMb, out QlJvmPlan plan, out string? argError))
         {
             JvmStatusText.Text = argError;
@@ -188,7 +268,7 @@ public partial class SettingsPage : UserControl
         }
 
         var warnings = new List<string>();
-        long physicalMb = physicalBytes / (1024L * 1024L);
+        long physicalMb = memoryStatus.TotalMb;
         if (physicalMb > 0 && effectiveMb > physicalMb)
             warnings.Add("内存上限超过本机物理内存（" + physicalMb + " MB）");
         if (physicalMb > 0 && plan.XmxMb > physicalMb)
@@ -203,7 +283,10 @@ public partial class SettingsPage : UserControl
 
         string status = warnings.Count > 0
             ? "提醒：" + string.Join("；", warnings) + "。"
-            : "参数有效。";
+            : enteredMb == 0
+                ? "参数有效。自动推荐 " + autoMb + " MB（可用 " + memoryStatus.AvailableMb
+                  + " MB / 物理 " + memoryStatus.TotalMb + " MB，模组 " + modCount + " 个）。"
+                : "参数有效。";
         JvmStatusText.Text = status;
         JvmStatusText.Foreground = (Brush)FindResource(
             warnings.Count > 0 ? "TextSecondary" : "OkGreen");

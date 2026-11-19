@@ -38,7 +38,7 @@ dotnet publish src/Qinglan.Launcher -c Release -r win-x64 --self-contained true 
 
 ## JVM / 内存
 
-设置页的「Java 启动参数」支持填写内存上限（MB，留空 = 自动：物理内存 1/4，夹 `[2048, 8192]`）和额外 JVM 参数；首页内存下拉仍保留为快捷档位，非档位值显示为「自定义」。
+设置页的「Java 启动参数」支持填写内存上限（MB，留空 = 自动：按当前可用物理内存与 mods 数量分阶段估算，PCL 同款思路；不再固定 1/4）和额外 JVM 参数；首页内存下拉仍保留为快捷档位，非档位值显示为「自定义」。
 
 拼装顺序固定为：
 
@@ -57,7 +57,10 @@ dotnet publish src/Qinglan.Launcher -c Release -r win-x64 --self-contained true 
 - 无单位 `-Xmx4096` 按 4096 MB 处理并补 `M`；`-Xmx4G` / `-Xmx 4G` 也可识别。
 - 未填任何额外参数时，生成的命令行与 R1 逐字等价。
 - 「每个参数一行」勾选框只改变编辑视图：按顶层空格换行，引号内空格保留；底层仍保存原始字符串。
-- `jvmArgs` / `jvmArgsOnePerLine` 只进本地用户配置，不写入空壳模板 `config.example.json`。
+- `jvmArgs` / `jvmArgsOnePerLine` / `useVersionJvmArgs` / `windowWidth` / `windowHeight` / `optimizeMemoryBeforeLaunch` 只进本地用户配置，不写入空壳模板 `config.example.json`。
+- 自动内存按当前**可用物理内存 + mods 数量**分阶段估算（PCL 同款思路）：mods 越多、可用内存越多，自动值越高；取不到内存时保守回落到 2048 MB，不再固定 1/4。
+- 设置页「窗口大小」提供紧凑 `940×620`、标准 `1040×680`、大 `1280×800`、超大 `1600×900` 四个预设；选择后立即调整当前窗口，下次启动沿用，超出屏幕工作区会自动夹到屏幕内。
+- 「启动游戏前进行内存优化」开关默认关闭：启动前调用 `EmptyWorkingSet` 整理可访问进程的工作集，可能延长启动时间；部分系统进程需要管理员权限，失败会跳过。
 
 ## 本地错误归因
 

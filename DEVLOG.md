@@ -313,9 +313,12 @@
   `JvmArgsOnePerLine`（只进本地配置，空壳模板未改）与 `QlJvmOptions`：自由内存输入、引号分词、
   `-Xmx` 唯一化（用户值 > 内存字段，版本 JSON 自带项删除）、用户 log4j 覆盖时不重复注入；
   设置页提供内存快捷档位、额外参数、行内校验、「每个参数一行」勾选框与 JVM 预览，首页内存下拉
-  支持自定义值；「Mojang 默认」按钮把版本 JSON 自带 JVM 参数填入额外参数框并关闭重复注入，
-  `UseVersionJvmArgs` 默认 true。默认空参数时命令行与 R1 逐字等价。错误侧新增 `Core/Diagnostics` 数据驱动规则
+  支持自定义值；自动内存改为按当前可用物理内存 + mods 数量分阶段估算（PCL 同款思路，不再固定
+  1/4）。「Mojang 默认」按钮把版本 JSON 自带 JVM 参数填入额外参数框并关闭重复注入，
+  `UseVersionJvmArgs` 默认 true。设置页新增窗口大小四档预设（940×620 / 1040×680 / 1280×800 /
+  1600×900）与「启动前进行内存优化」开关（EmptyWorkingSet，默认关闭；可能延长启动，部分进程
+  需管理员权限，失败跳过）。默认空参数时命令行与 R1 逐字等价。错误侧新增 `Core/Diagnostics` 数据驱动规则
   （缺 Java / Java 版本 / OOM / 模组冲突 / 下载网络 / 登录 / 原生崩溃 / 未知），`QlGameProcess`
   保留 stderr 尾部，`QlLogTail` 读 launcher.log 尾部，诊断卡复用 `ConfigNotice` 样式并带原始
-  日志展开与本地 SHA-1 指纹；全程无上传、无新网络请求、无新依赖。测试 540/540 全绿，构建
+  日志展开与本地 SHA-1 指纹；全程无上传、无新网络请求、无新依赖。测试 550/550 全绿，构建
   0 错 0 警；`config.example.json` 未改动。

@@ -25,8 +25,17 @@ public sealed class QlConfig
     /// <summary>离线玩家名（未登录微软时使用）。</summary>
     [JsonPropertyName("playerName")] public string? PlayerName { get; set; }
 
-    /// <summary>游戏内存上限 MB；0 = 自动（按物理内存取 1/4，夹 [2048, 8192]）。</summary>
+    /// <summary>游戏内存上限 MB；0 = 自动（按可用内存与 mods 数量估算）。</summary>
     [JsonPropertyName("maxMemoryMb")] public int MaxMemoryMb { get; set; }
+
+    /// <summary>主窗默认宽度（DIP）；缺省 1040。</summary>
+    [JsonPropertyName("windowWidth")] public int WindowWidth { get; set; } = 1040;
+
+    /// <summary>主窗默认高度（DIP）；缺省 680。</summary>
+    [JsonPropertyName("windowHeight")] public int WindowHeight { get; set; } = 680;
+
+    /// <summary>启动游戏前是否整理各进程工作集（本地操作，默认关闭）。</summary>
+    [JsonPropertyName("optimizeMemoryBeforeLaunch")] public bool OptimizeMemoryBeforeLaunch { get; set; }
 
     /// <summary>额外 JVM 参数（空格分隔；引号包裹含空格参数）；空 = 不追加。</summary>
     [JsonPropertyName("jvmArgs")] public string? JvmArgs { get; set; }

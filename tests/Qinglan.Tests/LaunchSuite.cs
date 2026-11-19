@@ -216,11 +216,29 @@ internal static class LaunchSuite
 
         // ───────── M2b-2 首页接线地基 ─────────
         T.Group("M2b-2 首页接线地基");
-        T.CheckEq("自动内存 4GB 落到下限", 2048, QlMemory.AutoMb(4L * 1024 * 1024 * 1024));
-        T.CheckEq("自动内存 16GB 取四分之一", 4096, QlMemory.AutoMb(16L * 1024 * 1024 * 1024));
-        T.CheckEq("自动内存 64GB 封顶", 8192, QlMemory.AutoMb(64L * 1024 * 1024 * 1024));
-        T.CheckEq("自动内存 取不到内存给下限", 2048, QlMemory.AutoMb(0));
-        T.CheckEq("配置内存优先于自动", 12288, QlMemory.EffectiveMb(12288, 16L * 1024 * 1024 * 1024));
+        var mem4 = new QlMemoryStatus(16L * 1024 * 1024 * 1024, 4L * 1024 * 1024 * 1024);
+        var mem8 = new QlMemoryStatus(32L * 1024 * 1024 * 1024, 8L * 1024 * 1024 * 1024);
+        var mem16 = new QlMemoryStatus(32L * 1024 * 1024 * 1024, 16L * 1024 * 1024 * 1024);
+        var mem32 = new QlMemoryStatus(64L * 1024 * 1024 * 1024, 32L * 1024 * 1024 * 1024);
+        T.CheckEq("自动内存：4GB 可用/无模组", 3072, QlMemory.AutoMb(0, mem4));
+        T.CheckEq("自动内存：8GB 可用/70 模组", 5376, QlMemory.AutoMb(70, mem8));
+        T.CheckEq("自动内存：32GB 可用/70 模组", 10496, QlMemory.AutoMb(70, mem32));
+        T.Check("自动内存随可用内存变化", QlMemory.AutoMb(70, mem8) < QlMemory.AutoMb(70, mem16));
+        T.Check("自动内存随模组数增加", QlMemory.AutoMb(0, mem8) < QlMemory.AutoMb(70, mem8));
+        T.Check("自动内存不再是总物理 1/4", QlMemory.AutoMb(70, mem8) != 8192);
+        T.CheckEq("取不到内存给保守值", 2048, QlMemory.AutoMb(0, QlMemoryStatus.Unknown));
+        T.CheckEq("配置内存优先于自动", 12288, QlMemory.EffectiveMb(12288, mem8, 70));
+
+        var modRoot = Fx.TempDir();
+        var modDir = Path.Combine(modRoot, "mods");
+        Directory.CreateDirectory(Path.Combine(modDir, "nested"));
+        File.WriteAllText(Path.Combine(modDir, "a.jar"), "");
+        File.WriteAllText(Path.Combine(modDir, "b.zip"), "");
+        File.WriteAllText(Path.Combine(modDir, "c.litemod"), "");
+        File.WriteAllText(Path.Combine(modDir, "d.txt"), "");
+        File.WriteAllText(Path.Combine(modDir, "e.jar.disabled"), "");
+        File.WriteAllText(Path.Combine(modDir, "nested", "f.jar"), "");
+        T.CheckEq("模组计数含子目录且排除禁用文件", 4, QlMemory.CountMods(modRoot));
 
         var customNatives = Path.Combine(gameDir, "natives-custom");
         var prepCustom = QlLaunchPrep.Finalize(merge, gameDir, customNatives);
