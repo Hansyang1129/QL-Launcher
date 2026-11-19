@@ -1,17 +1,17 @@
 # DEVLOG — 轻蓝启动器
 
 > 给接手者（人类或 AI）：本文件是项目唯一权威状态文档。开工先读最后一条日志，收工更新后提交。
-> 行为规范的权威参照：`REPO_ROOT\ql-launcher\QL-HMCL 行为备忘`（§7 引擎行为备忘 + §6 E2E 场景）。
+> 行为规范的权威参照：QL-HMCL 行为备忘（§7 引擎行为备忘 + §6 E2E 场景）。
 > 本仓库与其同吃一套 manifest v1 / ql-manifest-state.json / dblpack.json 格式与同一资源服务器。
 
 ## 1. 约定
 
 - 目标 .NET 10 (`net10.0-windows`) + WPF；**零 NuGet 依赖**（内置 System.Text.Json/HttpClient 即可）。
 - 界面语言只做简中；品牌名「轻蓝启动器 / Qinglan Launcher」，不使用 PCL 字样。
-- 铁律：测试产物放 `%TEMP%\ql-tmp\`，C 盘 Temp 只放小文件。
-  （沿用 ql-launcher 仓库教训：C 盘空间紧张。）
-- 引擎代码照 QL-HMCL 行为备忘 §7 行为备忘重写，**不逐行翻译 GPL Java 源**；数据格式是事实不受版权约束。
-- commit 规约：`feat(ql):/fix(ql):/docs(ql):` + 简述。git 身份沿用 `<username>` / `<email>`。
+- 铁律：测试产物放系统临时目录（本机可用 `%TEMP%`），不要塞进仓库。
+  （沿用 ql-launcher 仓库教训：系统盘空间紧张，测试结束由 runner 统一清理。）
+- 引擎代码照 QL-HMCL 行为备忘重写，**不逐行翻译 GPL Java 源**；数据格式是事实不受版权约束。
+- commit 规约：`feat(ql):/fix(ql):/docs(ql):` + 简述。git 身份按本机配置。
 
 ## 2. 关键事实速查（同步引擎，来自 ql-launcher 定稿行为）
 
@@ -70,7 +70,7 @@
   ② **导航切页失灵**：RadioButton 挂的是 `Click`，而程序化切选（UIA Select/设 IsChecked）只触发
   `Checked` 路由事件——表现为高亮走了、内容区纹丝不动（前两轮截图铁证）。改为 `Checked="OnNav"`
   并加 `_suppressNav` 防重入 guard；真人鼠标路径同样由 Checked 覆盖，行为无损。
-  ③ **截图自动化终于定型**（`%TEMP%\ql-tmp\shot.ps1`）：
+  ③ **截图自动化终于定型**（`ql-tmp/shot.ps1`）：
   纯鼠标点击两条死路——后台进程 SetForegroundWindow 被前台锁拦（截图混入 QQ），且第一下点击
   被「激活窗口」吞掉不落到控件；定型方案 = Alt 键解锁 + SetForegroundWindow + HWND_TOPMOST
   置顶还原，切页一律走 UIA SelectionItemPattern（不依赖鼠标/前台），PSScript 全体 try/finally
@@ -163,7 +163,7 @@
 - **2026-11-18 真包实测 + RPU 闭源口径 + 摘要保留**：① 真包 `Qinglan-2nd-RPU 26.9.1.mrpack`
   （68.3MB）解析零漂移：versionId=26.9.1、MC 1.20.1、loader 0.19.5、std=70、common=176
   （config 172 / options.txt 1 / shaderpacks 3）、可选组 axiom/dh/voxy。实例
-  `<gameDir>\.minecraft\versions\Qinglan-2nd-RPU` 的 `ql-manifest-state.json` 由 QL-HMCL 写入，
+   `<gameDir>\.minecraft\versions\Qinglan-2nd-RPU` 的 `ql-manifest-state.json` 由 QL-HMCL 写入，
   C# 读出一致（packVersion=26.9.1、packUrl=null、optionalRecorded=true、enabled=[axiom]、
   tracked std=70/common=176）——**共享状态文件互操作已实证**，格式不动。现场同步：
   下载 3 / 未变 243 / 重命名 0 / 删除 0 / 交接 0 / 失败 0；3 个下载是渲染器运行时改写的
@@ -190,7 +190,7 @@
   根目录）；`QlJavaLocator` 递归扫 `data/runtimes` 的 bin/java.exe（Mojang 清单的组件前缀子目录
   不再漏）；新 `QlMemory`（0 = 物理内存 1/4 夹 [2048, 8192]，本机自动 7628 MB）；`QlConfig` 加
   `microsoftClientId` / `microsoftAccountName` / `playerName`。离线名默认取 `Environment.UserName`
-  清洗后前 16 位（本机 <player>），首次启动落盘。
+  清洗后前 16 位（本机用户名），首次启动落盘。
   **抓到一个致命老 bug**：`QlArgsBuilder` 从未把主类插进 argv，整套游戏参数被 java 当成 JVM
   选项 → `Unrecognized option: --username` + `Could not create the Java Virtual Machine`。
   正确顺序固定为：`-Xmx` + JVM 模板参数 → `-Dlog4j.configurationFile`（JVM 选项）→ 主类 →
@@ -198,7 +198,7 @@
   控制台日志是 Mojang `LegacyXMLLayout` 跨行 XML，日志面板观感极差：新 `QlLogXml` 把
   `<log4j:Event>` 事件还原成 latest.log 同款 `[thread/LEVEL]: message`（Throwable 换行保留，
   非 XML 行透传，收尾不全时原文兜底），只做展示层整形，不动游戏 log4j 配置、不落盘。
-  真实例实测（`<gameDir>\.minecraft`，基础设施本来就全：libraries 324 文件、assets 9361 文件、
+  真实例实测（本地 `<gameDir>\.minecraft`，基础设施本来就全：libraries 324 文件、assets 9361 文件、
   64 个适用库与 3598 个资源对象全在位）：缺件只剩 `assets/log_configs/client-1.12.xml` 一个，
   自动补齐后装配 96 库/59 段类路径；Java 自动选中系统 `C:\Program Files\Java\jdk-21`（1.20.1
   只需 17+），Mojang 运行时下载路径仍留作无 Java 时兜底（引擎已测，本轮未触发）。
@@ -207,7 +207,7 @@
   MemoryLeakFix 等），结束游戏后 UI 回空闲。完整进游戏验证（`ql-tmp/e2e-game-boot.ps1`）：
   游戏窗口 `Minecraft* 1.20.1` 起来并捕获 `ql-tmp/e2e-boot/06-game-window.png`（窗口内是 RPU
   自己的「在线授权与获取发布」启动闸门，属闭源组件流程，启动器不介入）。微软登录本轮
-  client id 为空未实机走设备码（引擎在 M2b-1 已覆盖）；实际用离线账号 <player> 打通全链。
+  client id 为空未实机走设备码（引擎在 M2b-1 已覆盖）；实际用离线账号打通全链。
   测试 **409/409 全绿**（390 + 19：Java 组件传递/内存策略/natives 覆盖/配置往返/日志整形/
   参数顺序），构建 0 错 0 警。下一步：M3 服务器状态页 → M4 发布打包。
 - **2026-11-18 M3 服务器状态页**：新 `Core/Status/QlServerStatus.cs`——Minecraft SLP（1.7+ 协议 47

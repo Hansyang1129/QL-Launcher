@@ -30,7 +30,7 @@ internal static class RuntimeSuite
 
     private static async Task InstallFlow()
     {
-        var server = await MiniHttpServer.StartAsync(@"%TEMP%\ql-tmp\jre-fake")
+        var server = await MiniHttpServer.StartAsync(Fx.TempDir())
             .ConfigureAwait(false);
         var installDir = Path.Combine(Fx.TempDir(), "runtimes", "java-runtime-gamma");
         try
@@ -109,7 +109,7 @@ internal static class RuntimeSuite
 
     private static async Task LzmaOnlyFlow()
     {
-        var server = await MiniHttpServer.StartAsync(@"%TEMP%\ql-tmp\jre-fake-lzma")
+        var server = await MiniHttpServer.StartAsync(Fx.TempDir())
             .ConfigureAwait(false);
         var installDir = Path.Combine(Fx.TempDir(), "runtimes", "java-runtime-gamma-lzma");
         try

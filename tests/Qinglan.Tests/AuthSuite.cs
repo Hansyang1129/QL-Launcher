@@ -18,7 +18,7 @@ internal static class AuthSuite
 
     private static async Task FullFlow()
     {
-        var server = await MiniHttpServer.StartAsync(@"%TEMP%\ql-tmp\auth-fake")
+        var server = await MiniHttpServer.StartAsync(Fx.TempDir())
             .ConfigureAwait(false);
         try
         {
@@ -106,7 +106,7 @@ internal static class AuthSuite
 
     private static async Task RefreshFlow()
     {
-        var server = await MiniHttpServer.StartAsync(@"%TEMP%\ql-tmp\auth-fake2")
+        var server = await MiniHttpServer.StartAsync(Fx.TempDir())
             .ConfigureAwait(false);
         try
         {

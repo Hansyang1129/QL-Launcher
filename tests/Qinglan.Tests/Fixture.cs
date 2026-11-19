@@ -10,11 +10,36 @@ internal static class Fx
 {
     private static readonly List<string> TempDirs = new();
 
-    /// <summary>起一个进程级防重的临时目录（结束统一清）。TestOut 规约：放 %TEMP% 随机名。</summary>
+    /// <summary>临时根目录：优先 QL_TEST_TMP；否则放测试输出目录（bin，已 ignore）；最后回落系统 Temp。</summary>
+    private static string TempRoot()
+    {
+        var custom = Environment.GetEnvironmentVariable("QL_TEST_TMP");
+        foreach (var dir in new[]
+                 {
+                     string.IsNullOrWhiteSpace(custom) ? null : custom,
+                     Path.Combine(AppContext.BaseDirectory, "test-tmp"),
+                     Path.Combine(Path.GetTempPath(), "qinglan-launcher-tests"),
+                     Path.Combine(Path.GetTempPath(), "opencode", "qinglan-launcher-tests"),
+                 })
+        {
+            if (dir is null) continue;
+            try
+            {
+                Directory.CreateDirectory(dir);
+                return dir;
+            }
+            catch (Exception e) when (e is UnauthorizedAccessException or IOException)
+            {
+                // 换下一个候选
+            }
+        }
+        throw new IOException("无法创建测试临时目录");
+    }
+
+    /// <summary>起一个进程级防重的临时目录（结束统一清）。TestOut 规约：放系统临时目录随机名。</summary>
     public static string TempDir()
     {
-        // D 盘才是授权可写区（铁律：测试产物不塞 C 盘）
-        var dir = Path.Combine(@"%TEMP%\ql-tmp", "ql-tests-" + Guid.NewGuid().ToString("N")[..12]);
+        var dir = Path.Combine(TempRoot(), "ql-tests-" + Guid.NewGuid().ToString("N")[..12]);
         Directory.CreateDirectory(dir);
         TempDirs.Add(dir);
         return dir;
