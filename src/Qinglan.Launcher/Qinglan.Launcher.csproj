@@ -25,6 +25,10 @@
     <Content Include="Assets\**\*" Exclude="Assets\branding\**" CopyToOutputDirectory="PreserveNewest"/>
     <Resource Include="Assets\branding\app.ico"/>
     <Resource Include="Assets\branding\logo.png"/>
+    <!-- 官方/本服构建的真实部署配置；文件被 .gitignore 忽略，开源构建不存在时自动跳过 -->
+    <EmbeddedResource Include="config.embedded.json"
+                      LogicalName="Qinglan.Launcher.config.embedded.json"
+                      Condition="Exists('config.embedded.json')"/>
   </ItemGroup>
 
   <ItemGroup>

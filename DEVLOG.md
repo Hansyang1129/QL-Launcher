@@ -299,3 +299,9 @@
 - **2026-11-19 产品标识 4.x + 离线名去默认值**：标题徽标、首页、关于、程序集
   Company/Copyright 与 README/DEVLOG 中的「轻蓝 MTR 2.0」统一改为「轻蓝 MTR 4.x」；离线玩家名
   不再取系统用户名或 `Player` 兜底，空值直接提示先填写，不再静默生成默认名。
+- **2026-11-19 本服配置内嵌（上传仍为空壳）**：新增 `Core/Config/QlEmbeddedConfig.cs` 与
+  csproj 可选 EmbeddedResource；官方/本服构建把 `src/Qinglan.Launcher/config.embedded.json`
+  （已 gitignore，含真实 deployment 段）打进 exe，分发时无需附带 `data/config/config.json`。
+  运行时外部配置的 `deployment` 段若存在则整段覆盖内嵌值，否则用内嵌值；没有内嵌文件时保持
+  全空占位。内嵌文件也可带 `microsoftClientId`。实机验证：外部配置无 deployment 时，状态页
+  3/3 在线、MTR 加载 239 站 / 71 线 / 155 方向；测试 465/465 全绿，构建 0 错 0 警。

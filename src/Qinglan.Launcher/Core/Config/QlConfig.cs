@@ -29,26 +29,34 @@ public sealed class QlConfig
     [JsonPropertyName("maxMemoryMb")] public int MaxMemoryMb { get; set; }
 
     /// <summary>部署端点（A 类留空 = 模块禁用；B 类留空 = 官方默认）。</summary>
-    /// <para>开源仓库只提交空壳模板；真实值由本地 <c>data/config/config.json</c> 提供。
+    /// <para>开源仓库只提交空壳模板；真实值由本地 <c>data/config/config.json</c> 或构建期内嵌文件提供。
     /// 字段语义与归一化见 <see cref="QlDeployment"/>。</para>
     [JsonPropertyName("deployment")] public QlDeploymentConfig? Deployment { get; set; }
 
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
-    /// <summary>装载；文件缺失或损坏时给空配置。</summary>
+    /// <summary>装载；文件缺失或损坏时给空配置。内嵌 client id 仅在外部未填时兜底。</summary>
     public static QlConfig Load(string configDir)
     {
         var file = Path.Combine(configDir, "config.json");
         try
         {
-            if (!File.Exists(file)) return new QlConfig();
-            return JsonSerializer.Deserialize<QlConfig>(File.ReadAllText(file)) ?? new QlConfig();
+            if (!File.Exists(file)) return WithEmbeddedDefaults(new QlConfig());
+            return WithEmbeddedDefaults(
+                JsonSerializer.Deserialize<QlConfig>(File.ReadAllText(file)) ?? new QlConfig());
         }
         catch (Exception e) when (e is JsonException or IOException)
         {
             Globals.Log("配置读取失败(忽略): " + e.Message);
-            return new QlConfig();
+            return WithEmbeddedDefaults(new QlConfig());
         }
+    }
+
+    private static QlConfig WithEmbeddedDefaults(QlConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(config.MicrosoftClientId))
+            config.MicrosoftClientId = QlEmbeddedConfig.MicrosoftClientId;
+        return config;
     }
 
     /// <summary>保存；IO 失败抛出，由调用方决定如何提示。</summary>

@@ -36,6 +36,8 @@ dotnet publish src/Qinglan.Launcher -c Release -r win-x64 --self-contained true 
 
 `data/` 已在 `.gitignore` 中，真实配置不会进入版本库。
 
+官方/本服构建可在 `src/Qinglan.Launcher/config.embedded.json` 放置同一结构的真实 `deployment` 段（该文件已 gitignore）；csproj 会把它作为 EmbeddedResource 打进 exe。运行时外部 `data/config/config.json` 若含 `deployment` 段则整段覆盖内嵌值，没有则直接使用内嵌值；开源构建没有该文件，保持全空占位。内嵌文件也可带 `microsoftClientId`，外部未填时作为默认值。仓库上传的始终只有带注释的空模板 `config.example.json`。
+
 游戏内 RPU 客户端为闭源组件：本仓库只保留更新按钮、进度条和日志展示三个接口挂点，并保证同步不触碰 `qlrpu/**` 与 `config/qlrpu-client.json`。
 
 许可：本仓库为独立实现（自有代码，不含 PCL/HMCL 源码）；数据格式与服务端沿用轻蓝社区既有设施。

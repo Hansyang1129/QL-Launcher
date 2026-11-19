@@ -5,7 +5,7 @@ namespace Qinglan.Launcher.Core;
 /// <summary>
 /// 部署端点配置（<c>data/config/config.json</c> 的 <c>deployment</c> 段）。
 /// <para>A 类字段留空 = 对应模块禁用或降级；B 类（微软官方端点）留空 = 回落官方默认。
-/// 开源仓库只提交空壳模板，真实部署值由本地配置提供，不进版本库。</para>
+/// 开源仓库只提交空壳模板，真实部署值由本地配置或构建期内嵌文件提供，不进版本库。</para>
 /// </summary>
 public sealed class QlDeploymentConfig
 {
@@ -121,8 +121,9 @@ public static class QlDeployment
     /// <summary>当前部署配置（永远非 null；空配置返回全空对象）。</summary>
     public static QlDeploymentConfig Current => _current;
 
-    /// <summary>启动时装载：配置缺失或 deployment 段缺失都按全空处理。</summary>
-    public static void Load(QlConfig config) => Set(config.Deployment ?? new QlDeploymentConfig());
+    /// <summary>启动时装载：外部 deployment 段优先；没有则用内嵌兜底；都没有按全空处理。</summary>
+    public static void Load(QlConfig config, QlDeploymentConfig? embedded = null)
+        => Set(config.Deployment ?? embedded ?? new QlDeploymentConfig());
 
     /// <summary>覆盖当前配置（测试/热重载用）；自动 Normalize。</summary>
     public static void Set(QlDeploymentConfig deployment) => _current = deployment.Normalize();

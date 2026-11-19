@@ -9,3 +9,5 @@ dist/
 *.mrpack
 *.corrupt
 .tmp/
+# 官方/本服构建用的真实部署配置，禁止入库（开源仓库只提交 config.example.json 空壳）
+config.embedded.json

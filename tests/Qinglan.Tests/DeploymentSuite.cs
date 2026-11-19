@@ -19,6 +19,8 @@ internal static class DeploymentSuite
         AuthFallback();
         T.Group("部署配置：JSON 装载");
         ParseConfig();
+        T.Group("部署配置：内嵌兜底");
+        EmbeddedFallback();
         QlDeployment.Reset();
     }
 
@@ -173,5 +175,32 @@ internal static class DeploymentSuite
             """{"deployment":{"server":null,"mtr":null,"auth":null}}""")!;
         QlDeployment.Load(nulls);
         T.Check("显式 null 子段不炸", !QlDeployment.HasServer && QlDeployment.AuthEndpoints.TokenUrl.Length > 0);
+    }
+
+    private static void EmbeddedFallback()
+    {
+        var embedded = new QlDeploymentConfig
+        {
+            Server = new QlServerDeployment { Name = "内嵌服", SlpHost = "mc.embedded", SlpPort = 25565 },
+            Mtr = new QlEndpointDeployment { BaseUrl = "https://mtr.embedded" },
+        };
+
+        QlDeployment.Load(new QlConfig(), embedded);
+        T.Check("无外部 deployment 时用内嵌", QlDeployment.HasServer && QlDeployment.HasMtr);
+        T.CheckEq("内嵌服务器名生效", "内嵌服", QlDeployment.ServerName);
+
+        var external = new QlConfig
+        {
+            Deployment = new QlDeploymentConfig
+            {
+                Forum = new QlEndpointDeployment { BaseUrl = "https://forum.external" },
+            },
+        };
+        QlDeployment.Load(external, embedded);
+        T.Check("外部 deployment 整段覆盖内嵌", !QlDeployment.HasServer && !QlDeployment.HasMtr);
+        T.CheckEq("外部论坛地址生效", "https://forum.external", QlDeployment.ForumBaseUrl);
+
+        QlDeployment.Load(new QlConfig(), null);
+        T.Check("没有内嵌兜底时保持全空", !QlDeployment.HasServer && !QlDeployment.HasMtr);
     }
 }
