@@ -28,6 +28,11 @@ public sealed class QlConfig
     /// <summary>游戏内存上限 MB；0 = 自动（按物理内存取 1/4，夹 [2048, 8192]）。</summary>
     [JsonPropertyName("maxMemoryMb")] public int MaxMemoryMb { get; set; }
 
+    /// <summary>部署端点（A 类留空 = 模块禁用；B 类留空 = 官方默认）。</summary>
+    /// <para>开源仓库只提交空壳模板；真实值由本地 <c>data/config/config.json</c> 提供。
+    /// 字段语义与归一化见 <see cref="QlDeployment"/>。</para>
+    [JsonPropertyName("deployment")] public QlDeploymentConfig? Deployment { get; set; }
+
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     /// <summary>装载；文件缺失或损坏时给空配置。</summary>

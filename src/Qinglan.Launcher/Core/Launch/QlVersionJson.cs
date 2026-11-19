@@ -73,10 +73,10 @@ public sealed class QlVersionJson
     public string? ClientSha1 { get; set; }
     public long ClientSize { get; set; }
 
-    public string? LogFileId { get; set; }
-    public string? LogFileUrl { get; set; }
-    public string? LogFileSha1 { get; set; }
-    public long LogFileSize { get; set; } = -1;
+    public string? Log4jConfigId { get; set; }
+    public string? Log4jConfigUrl { get; set; }
+    public string? Log4jConfigSha1 { get; set; }
+    public long Log4jConfigSize { get; set; } = -1;
 
     // ───────────────── 解析 ─────────────────
 
@@ -114,10 +114,10 @@ public sealed class QlVersionJson
         if (root.TryGetProperty("logging", out var log) && log.TryGetProperty("client", out var lc)
             && lc.TryGetProperty("file", out var lf))
         {
-            v.LogFileId = lf.GetProperty("id").GetString();
-            v.LogFileUrl = lf.GetProperty("url").GetString();
-            v.LogFileSha1 = StrOr(lf, "sha1");
-            v.LogFileSize = lf.TryGetProperty("size", out var lsz) ? lsz.GetInt64() : -1;
+            v.Log4jConfigId = lf.GetProperty("id").GetString();
+            v.Log4jConfigUrl = lf.GetProperty("url").GetString();
+            v.Log4jConfigSha1 = StrOr(lf, "sha1");
+            v.Log4jConfigSize = lf.TryGetProperty("size", out var lsz) ? lsz.GetInt64() : -1;
         }
 
         if (root.TryGetProperty("libraries", out var libs))
@@ -233,10 +233,10 @@ public sealed class QlVersionJson
             ClientUrl = vanilla.ClientUrl,
             ClientSha1 = vanilla.ClientSha1,
             ClientSize = vanilla.ClientSize,
-            LogFileId = vanilla.LogFileId,
-            LogFileUrl = vanilla.LogFileUrl,
-            LogFileSha1 = vanilla.LogFileSha1,
-            LogFileSize = vanilla.LogFileSize,
+            Log4jConfigId = vanilla.Log4jConfigId,
+            Log4jConfigUrl = vanilla.Log4jConfigUrl,
+            Log4jConfigSha1 = vanilla.Log4jConfigSha1,
+            Log4jConfigSize = vanilla.Log4jConfigSize,
         };
 
         // 库：fabric 在前（loader 解析优先），同名同路径的以先出现者为准。

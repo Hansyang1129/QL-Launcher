@@ -21,7 +21,7 @@
                                    AutomationProperties.AutomationId="RefreshStatusText"/>
                         <TextBlock x:Name="SummaryText" Text="" Style="{StaticResource PageHint}"
                                    Margin="0,4,0,0" AutomationProperties.AutomationId="SummaryText"/>
-                        <TextBlock Text="停留本页时每 30 秒自动刷新；离开页面即暂停。"
+                        <TextBlock x:Name="RefreshHintText" Text="停留本页时每 30 秒自动刷新；离开页面即暂停。"
                                    Style="{StaticResource PageHint}" Margin="0,2,0,0"/>
                     </StackPanel>
                     <Button x:Name="BtnRefresh" Grid.Column="1" Content="刷新" Style="{StaticResource BtnPrimary}"

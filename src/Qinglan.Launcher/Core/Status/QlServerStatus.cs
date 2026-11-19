@@ -86,17 +86,43 @@ public sealed record QlHttpResult(long LatencyMs, int StatusCode, string Body)
 /// </summary>
 public static class QlServerStatus
 {
-    /// <summary>默认探测表：轻蓝 SLP + MTR 地图 API + Reporter 登录页。
-    /// <para>QL-HMCL 原版探这三个服务的根路径；实测根路径分别是 404/404/401（服务本身在线），
-    /// 因此这里改探真正返回 200 的健康路径，保持“仅 200 算在线”的判定不变。</para></summary>
-    public static IReadOnlyList<QlProbe> DefaultProbes { get; } = new[]
+    /// <summary>按当前部署配置构建探测表：未配置的模块不生成探测项（空表 = 状态页未就绪）。</summary>
+    /// <para>MTR 与 Reporter 优先探测真正返回 200 的健康路径（根路径可能是 404/401），
+    /// 判定仍是“仅 200 算在线”。</para>
+    public static IReadOnlyList<QlProbe> BuildDefaultProbes()
     {
-        QlProbe.Slp("轻蓝", "mc.example.com", 32650),
-        QlProbe.Http("MTR Web", "mc.example.com", 14614,
-            "http://mc.example.com:14614/mtr/api/map/stations-and-routes?dimension=minecraft:overworld"),
-        QlProbe.Http("Reporter", "mc.example.com", 19451,
-            "http://mc.example.com:19451/login"),
-    };
+        var probes = new List<QlProbe>();
+        var dep = QlDeployment.Current;
+
+        if (QlDeployment.HasServer)
+        {
+            probes.Add(QlProbe.Slp(
+                string.IsNullOrWhiteSpace(dep.Server.Name) ? null : dep.Server.Name,
+                dep.Server.SlpHost, dep.Server.SlpPort));
+        }
+
+        if (QlDeployment.HasMtr)
+        {
+            string baseUrl = QlDeployment.MtrBaseUrl;
+            probes.Add(QlProbe.Http("MTR Web", HostOf(baseUrl), PortOf(baseUrl),
+                baseUrl + "/mtr/api/map/stations-and-routes?dimension=minecraft:overworld"));
+        }
+
+        if (QlDeployment.HasReporter)
+        {
+            string baseUrl = QlDeployment.ReporterBaseUrl;
+            probes.Add(QlProbe.Http("Reporter", HostOf(baseUrl), PortOf(baseUrl),
+                baseUrl + "/login"));
+        }
+
+        return probes;
+    }
+
+    private static string HostOf(string url)
+        => Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : url;
+
+    private static int PortOf(string url)
+        => Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Port : 0;
 
     /// <summary>SLP 状态响应体的上限，防止恶意对端让我们无界分配。</summary>
     private const int MaxResponseBytes = 1 << 20;
@@ -106,7 +132,7 @@ public static class QlServerStatus
 
     /// <summary>
     /// 状态探测专用 HTTP 客户端：强制直连，不走系统代理。
-    /// <para>用户常开着 Watt Toolkit 等系统代理，代理对非标端口（14614/19451）会直接回 404；
+    /// <para>用户常开着 Watt Toolkit 等系统代理，代理对非标端口会直接回 404；
     /// 状态页要测的是端点本身的健康度，和 SLP 的直连 TCP 保持同一口径。</para>
     /// </summary>
     private static readonly HttpClient ProbeClient = new(new SocketsHttpHandler

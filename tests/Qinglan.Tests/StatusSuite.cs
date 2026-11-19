@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using Qinglan.Launcher.Core;
 using Qinglan.Launcher.Core.Status;
 
 namespace Qinglan.Tests;
@@ -153,18 +154,29 @@ internal static class StatusSuite
         T.Check("单点异常不拖垮整表", !results[2].Online && results[2].Detail?.Length > 0);
         T.Check("真实在线数统计正确", results.Count(r => r.Online) == 1);
 
-        var defs = QlServerStatus.DefaultProbes;
-        T.CheckEq("默认端点 3 个", 3, defs.Count);
-        T.Check("轻蓝端点 = SLP mc.example.com:32650",
-            defs[0].Kind == QlProbeKind.Slp && defs[0].Host == "mc.example.com" && defs[0].Port == 32650);
+        // 探测表由部署配置生成：未配置时必须为空（页面据此显示统一占位）。
+        QlDeployment.Reset();
+        T.Check("空配置默认探测表为空", QlServerStatus.BuildDefaultProbes().Count == 0);
+
+        QlDeployment.Set(new QlDeploymentConfig
+        {
+            Server = new QlServerDeployment { Name = "轻蓝", SlpHost = "mc.example", SlpPort = 32650 },
+            Mtr = new QlEndpointDeployment { BaseUrl = "http://mtr.example:18080" },
+            Reporter = new QlEndpointDeployment { BaseUrl = "http://mtr.example:18081" },
+        });
+        var defs = QlServerStatus.BuildDefaultProbes();
+        T.CheckEq("配置三项生成默认端点 3 个", 3, defs.Count);
+        T.Check("首项 SLP 来自配置",
+            defs[0].Kind == QlProbeKind.Slp && defs[0].Host == "mc.example" && defs[0].Port == 32650);
         T.CheckEq("MTR Web 是 HTTP", QlProbeKind.Http, defs[1].Kind);
-        T.Check("Reporter 是 HTTP", defs[2].Kind == QlProbeKind.Http && defs[2].Port == 19451);
-        T.CheckEq("空白标签回落 host:port", "mc.example.com:32650",
-            new QlProbe(" ", QlProbeKind.Slp, "mc.example.com", 32650, null).DisplayLabel);
+        T.Check("Reporter 是 HTTP", defs[2].Kind == QlProbeKind.Http && defs[2].Port == 18081);
+        T.CheckEq("空白标签回落 host:port", "mc.example:32650",
+            new QlProbe(" ", QlProbeKind.Slp, "mc.example", 32650, null).DisplayLabel);
         T.Check("MTR 探真实地图 API（根路径 404）", defs[1].Address.Contains(
             "/mtr/api/map/stations-and-routes", StringComparison.Ordinal));
-        T.CheckEq("Reporter 探登录页（根路径 401）", "http://mc.example.com:19451/login",
+        T.CheckEq("Reporter 探登录页（根路径 401）", "http://mtr.example:18081/login",
             defs[2].Address);
+        QlDeployment.Reset();
     }
 
     // ─────────────────────────── MOTD ───────────────────────────

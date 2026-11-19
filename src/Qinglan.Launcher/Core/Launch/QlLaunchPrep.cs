@@ -98,10 +98,10 @@ public static class QlLaunchPrep
         }
 
         string logFile = "";
-        if (m.LogFileUrl is not null)
+        if (m.Log4jConfigUrl is not null)
         {
-            logFile = Path.Combine(gameDir, "assets", "log_configs", m.LogFileId ?? "log4j.xml");
-            Plan("log4j 配置", new[] { m.LogFileUrl }, logFile, m.LogFileSha1 ?? "", m.LogFileSize);
+            logFile = Path.Combine(gameDir, "assets", "log_configs", m.Log4jConfigId ?? "log4j.xml");
+            Plan("log4j 配置", new[] { m.Log4jConfigUrl }, logFile, m.Log4jConfigSha1 ?? "", m.Log4jConfigSize);
         }
 
         // 资源索引：小文件，这里内联确认（缺失就下、损坏重下一次）；成功后才能枚举对象。
@@ -230,9 +230,9 @@ public static class QlLaunchPrep
             JvmArgs = m.JvmArgs.ToList(),
             GameArgs = m.GameArgs.ToList(),
             JavaMajor = m.JavaMajor,
-            LogConfigFile = m.LogFileId is null
+            LogConfigFile = m.Log4jConfigId is null
                 ? null
-                : Path.Combine(gameDir, "assets", "log_configs", m.LogFileId),
+                : Path.Combine(gameDir, "assets", "log_configs", m.Log4jConfigId),
         };
     }
 

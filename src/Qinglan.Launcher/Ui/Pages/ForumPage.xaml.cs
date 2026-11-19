@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Qinglan.Launcher.Core;
 using Qinglan.Launcher.Core.Forum;
 
 namespace Qinglan.Launcher.Ui.Pages;
@@ -15,6 +16,7 @@ public partial class ForumPage : UserControl
     private const int PageSize = 20;
 
     private readonly List<QlForumPost> _posts = new();
+    private CancellationTokenSource? _cts;
     private QlForumPost? _selected;
     private bool _rssMode;
     private bool _loading;
@@ -27,15 +29,49 @@ public partial class ForumPage : UserControl
         InitializeComponent();
         Loaded += (_, _) =>
         {
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = new CancellationTokenSource();
+
+            if (!QlDeployment.HasForum)
+            {
+                ShowUnconfigured();
+                return;
+            }
+
+            BtnForumRefresh.IsEnabled = true;
             if (!_loaded) _ = LoadPageAsync(reset: true);
+        };
+        Unloaded += (_, _) =>
+        {
+            _loading = false;
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
         };
     }
 
     // ─────────────────────────── 列表 ───────────────────────────
 
-    private void OnRefresh(object sender, RoutedEventArgs e) => _ = LoadPageAsync(reset: true);
+    private void OnRefresh(object sender, RoutedEventArgs e)
+    {
+        if (!QlDeployment.HasForum)
+        {
+            ShowUnconfigured();
+            return;
+        }
+        _ = LoadPageAsync(reset: true);
+    }
 
-    private void OnLoadMore(object sender, RoutedEventArgs e) => _ = LoadPageAsync(reset: false);
+    private void OnLoadMore(object sender, RoutedEventArgs e)
+    {
+        if (!QlDeployment.HasForum)
+        {
+            ShowUnconfigured();
+            return;
+        }
+        _ = LoadPageAsync(reset: false);
+    }
 
     /// <summary>
     /// 读取一页帖子。内容 API 失败且手上一无所有时切换 RSS；RSS 一次给全部条目，
@@ -44,6 +80,7 @@ public partial class ForumPage : UserControl
     private async Task LoadPageAsync(bool reset)
     {
         if (_loading) return;
+        var ct = _cts?.Token ?? CancellationToken.None;
         _loading = true;
         BtnForumRefresh.IsEnabled = false;
         if (reset)
@@ -58,7 +95,7 @@ public partial class ForumPage : UserControl
             {
                 try
                 {
-                    var posts = await QlForum.FetchPostsAsync(reset ? 1 : _page, PageSize);
+                    var posts = await QlForum.FetchPostsAsync(reset ? 1 : _page, PageSize, ct);
                     if (reset) _posts.Clear();
                     if (posts.Count == 0)
                     {
@@ -71,11 +108,15 @@ public partial class ForumPage : UserControl
                         ForumListStatus.Text = "共 " + _posts.Count + " 篇帖子";
                     }
                 }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    return; // 离页取消：不要切 RSS、不要写失败提示。
+                }
                 catch (Exception ex) when (_posts.Count == 0)
                 {
                     // 列表 API 整体不可用：切 RSS 备份，语义与 QL-HMCL 一致。
                     Globals.Log("论坛列表 API 失败，切换到 RSS: " + ex.Message);
-                    var rss = await QlForum.FetchPostsFromRssAsync();
+                    var rss = await QlForum.FetchPostsFromRssAsync(ct);
                     _posts.Clear();
                     _posts.AddRange(rss);
                     _rssMode = true;
@@ -87,7 +128,7 @@ public partial class ForumPage : UserControl
             }
             else
             {
-                var rss = await QlForum.FetchPostsFromRssAsync();
+                var rss = await QlForum.FetchPostsFromRssAsync(ct);
                 _posts.Clear();
                 _posts.AddRange(rss);
                 ForumListStatus.Text = "RSS 备份 · 共 " + _posts.Count + " 篇帖子";
@@ -104,6 +145,10 @@ public partial class ForumPage : UserControl
             MainWindow.Instance.SetStatus("论坛：" + _posts.Count + " 篇帖子"
                 + (_rssMode ? "（RSS 备份）" : ""));
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // 离页取消：保留已加载的列表与正文。
+        }
         catch (Exception ex)
         {
             ForumListStatus.Text = "论坛加载失败，请检查网络后重试。";
@@ -119,8 +164,30 @@ public partial class ForumPage : UserControl
         finally
         {
             _loading = false;
-            BtnForumRefresh.IsEnabled = true;
+            BtnForumRefresh.IsEnabled = QlDeployment.HasForum;
         }
+    }
+
+    /// <summary>论坛根地址为空：统一占位，不发 API/RSS 请求。</summary>
+    private void ShowUnconfigured()
+    {
+        _posts.Clear();
+        _loaded = false;
+        _selected = null;
+        _rssMode = false;
+        PostList.Items.Clear();
+        BtnForumRefresh.IsEnabled = false;
+        BtnMore.Visibility = Visibility.Collapsed;
+        BtnOpenPost.IsEnabled = false;
+        ForumNote.Visibility = Visibility.Collapsed;
+        ForumListStatus.Text = "论坛未配置";
+        ForumStatusText.Text = "未配置";
+        ArticleTitle.Text = "论坛文章";
+        ArticleMeta.Text = "";
+        ArticleBody.Children.Clear();
+        ArticleBody.Children.Add(ConfigNotice.Build(ConfigNotice.Forum));
+        MainWindow.Instance.SetStatus("论坛：未配置");
+        Globals.Log("论坛页未配置：deployment.forum.baseUrl 为空");
     }
 
     private void RenderList(bool selectFirst)
@@ -200,9 +267,10 @@ public partial class ForumPage : UserControl
 
     private async Task LoadArticleAsync(QlForumPost post, int generation)
     {
+        var ct = _cts?.Token ?? CancellationToken.None;
         try
         {
-            var article = await QlForum.FetchArticleForPostAsync(post);
+            var article = await QlForum.FetchArticleForPostAsync(post, ct);
             if (generation != _articleGeneration) return;
 
             if (!string.IsNullOrWhiteSpace(article.Title) && post.FromRss)
@@ -225,6 +293,10 @@ public partial class ForumPage : UserControl
                 ArticleBody.Children.Clear();
                 ArticleBody.Children.Add(Notice("这篇文章没有内容。"));
             }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // 离页取消：保留“加载文章中…”占位，下次进入重新加载。
         }
         catch (Exception ex)
         {

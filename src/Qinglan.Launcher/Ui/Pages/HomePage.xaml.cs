@@ -208,7 +208,7 @@ public partial class HomePage : UserControl
         {
             AccountHint.Text = "离线模式可直接启动；正版账号点右侧登录（设备码，无需密码输入到启动器）。";
         }
-        BtnMsLogin.ToolTip = configured ? null : "先在「设置」里填写微软 OAuth client id";
+        BtnMsLogin.ToolTip = configured ? null : "先在「设置」里填写微软应用 client id";
         UpdateControls();
     }
 
@@ -260,7 +260,7 @@ public partial class HomePage : UserControl
         var clientId = _config.MicrosoftClientId?.Trim();
         if (string.IsNullOrWhiteSpace(clientId))
         {
-            AccountHint.Text = "先在「设置」里填写微软 OAuth client id。";
+            AccountHint.Text = "先在「设置」里填写微软应用 client id。";
             return;
         }
 

@@ -2,12 +2,12 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Web.WebView2.Core;
-using Qinglan.Launcher.Core.Mtr;
+using Qinglan.Launcher.Core;
 
 namespace Qinglan.Launcher.Ui.Pages;
 
 /// <summary>
-/// MTR 地图页：用 WebView2 内嵌 <see cref="QlMtr.WebMapUrl"/>。
+/// MTR 地图页：用 WebView2 内嵌部署配置里的网页地图入口。
 /// <para>用户明确要求“能嵌就嵌，不行就提示 webview 不可用”：运行时缺失、初始化失败或
 /// 主导航失败都切到同一块提示面板，并保留系统浏览器入口。</para>
 /// </summary>
@@ -16,18 +16,43 @@ public partial class MapPage : UserControl
     private bool _ready;
     private bool _initializing;
     private bool _navigatingMap;
+    private string? _mapUrl;
+    private CancellationTokenSource? _navCts;
 
     public MapPage()
     {
         InitializeComponent();
-        Loaded += (_, _) => _ = EnsureWebViewAsync();
-        Unloaded += (_, _) => LoadingPanel.Visibility = Visibility.Collapsed;
+        Loaded += (_, _) =>
+        {
+            if (!QlDeployment.HasMtr)
+            {
+                ShowUnconfigured();
+                return;
+            }
+            _ = EnsureWebViewAsync();
+        };
+        Unloaded += (_, _) =>
+        {
+            _navCts?.Cancel();
+            _navCts?.Dispose();
+            _navCts = null;
+            LoadingPanel.Visibility = Visibility.Collapsed;
+        };
     }
 
     /// <summary>首次进入页面时初始化 WebView2；页面被缓存，后续返回不再重建。</summary>
     private async Task EnsureWebViewAsync()
     {
         if (_ready || _initializing) return;
+        if (!QlDeployment.HasMtr)
+        {
+            ShowUnconfigured();
+            return;
+        }
+
+        _mapUrl = QlDeployment.MtrWebUrl;
+        BtnFallbackOpen.IsEnabled = true;
+        BtnFallbackRetry.IsEnabled = true;
         _initializing = true;
         ShowLoading("首次打开会初始化 WebView2 用户目录。");
         try
@@ -67,7 +92,7 @@ public partial class MapPage : UserControl
             };
 
             _ready = true;
-            Globals.Log("MTR 地图：WebView2 " + version + " 开始加载 " + QlMtr.WebMapUrl);
+            Globals.Log("MTR 地图：WebView2 " + version + " 开始加载 " + _mapUrl);
             StartMapNavigation();
         }
         catch (Exception ex)
@@ -84,20 +109,33 @@ public partial class MapPage : UserControl
     /// <summary>发起地图导航。只认这次导航的完成事件，避免初始化阶段的 about:blank 中止误判。</summary>
     private void StartMapNavigation()
     {
-        if (Web.CoreWebView2 is null) return;
+        string? mapUrl = _mapUrl;
+        if (Web.CoreWebView2 is null || string.IsNullOrWhiteSpace(mapUrl)) return;
         _navigatingMap = true;
-        ShowLoading("正在连接 " + QlMtr.WebMapUrl + " …");
-        Web.CoreWebView2.Navigate(QlMtr.WebMapUrl);
-        _ = NavigationTimeoutAsync();
+        ShowLoading("正在连接 " + mapUrl + " …");
+        Web.CoreWebView2.Navigate(mapUrl);
+
+        _navCts?.Cancel();
+        _navCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _navCts = cts;
+        _ = NavigationTimeoutAsync(mapUrl, cts.Token);
     }
 
     /// <summary>导航迟迟不完成时的兜底提示；若真实导航稍后成功，完成事件仍会切回地图。</summary>
-    private async Task NavigationTimeoutAsync()
+    private async Task NavigationTimeoutAsync(string mapUrl, CancellationToken ct)
     {
-        await Task.Delay(TimeSpan.FromSeconds(15));
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(15), ct);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
         if (!_navigatingMap) return;
         ShowFallback("webview 地图加载超时",
-            "连接 " + QlMtr.WebMapUrl + " 超过 15 秒未完成。可重试或在浏览器打开。");
+            "连接 " + mapUrl + " 超过 15 秒未完成。可重试或在浏览器打开。");
         Globals.Log("MTR 地图导航超时");
     }
 
@@ -118,6 +156,7 @@ public partial class MapPage : UserControl
         if (source.StartsWith("about:", StringComparison.OrdinalIgnoreCase)) return;
 
         _navigatingMap = false;
+        _navCts?.Cancel();
         if (e.IsSuccess)
         {
             LoadingPanel.Visibility = Visibility.Collapsed;
@@ -135,6 +174,11 @@ public partial class MapPage : UserControl
     /// <summary>重新加载：初始化过就直接导航，否则重走一遍运行时检测。</summary>
     private void OnReload(object sender, RoutedEventArgs e)
     {
+        if (!QlDeployment.HasMtr)
+        {
+            ShowUnconfigured();
+            return;
+        }
         if (Web.CoreWebView2 is not null)
         {
             StartMapNavigation();
@@ -145,8 +189,27 @@ public partial class MapPage : UserControl
 
     private void OnOpenExternal(object sender, RoutedEventArgs e)
     {
-        if (!Globals.OpenUrl(QlMtr.WebMapUrl))
-            FallbackDetail.Text = "无法调起系统浏览器，请手动访问 " + QlMtr.WebMapUrl;
+        string? mapUrl = _mapUrl;
+        if (string.IsNullOrWhiteSpace(mapUrl))
+        {
+            FallbackDetail.Text = "MTR 地图未配置。";
+            return;
+        }
+        if (!Globals.OpenUrl(mapUrl))
+            FallbackDetail.Text = "无法调起系统浏览器，请手动访问 " + mapUrl;
+    }
+
+    /// <summary>MTR 根地址为空：统一占位，不初始化 WebView2、不发请求。</summary>
+    private void ShowUnconfigured()
+    {
+        _navCts?.Cancel();
+        BtnReload.IsEnabled = false;
+        BtnOpen.IsEnabled = false;
+        BtnFallbackOpen.IsEnabled = false;
+        BtnFallbackRetry.IsEnabled = false;
+        ShowFallback("MTR 地图未配置", ConfigNotice.Map);
+        Globals.Log("地图页未配置：deployment.mtr.baseUrl 为空");
+        MainWindow.Instance.SetStatus("MTR 地图：未配置");
     }
 
     private void ShowLoading(string detail)

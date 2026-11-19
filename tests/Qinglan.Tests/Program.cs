@@ -23,10 +23,10 @@ try
     LaunchSuite.Run();
     AuthSuite.Run();
     RuntimeSuite.Run();
-    RpuSuite.Run();
     StatusSuite.Run();
     MtrSuite.Run();
     ForumSuite.Run();
+    DeploymentSuite.Run();
 }
 finally
 {

@@ -11,16 +11,16 @@ namespace Qinglan.Launcher.Core.Forum;
 public sealed record QlForumPost(string Name, string Title, string? Author, string? PublishTime,
     string Excerpt, string Permalink, bool Pinned, int Visits, int Upvotes, bool FromRss)
 {
-    /// <summary>帖子在论坛站点上的绝对地址。</summary>
-    public string Url => QlForum.BaseUrl + Permalink;
+    /// <summary>帖子在论坛站点上的绝对地址；站点未配置时保留相对地址。</summary>
+    public string Url => QlDeployment.ForumUrl(Permalink);
 }
 
 /// <summary>一篇论坛文章的完整内容。</summary>
 public sealed record QlForumArticle(string Name, string Title, string? Author, string? PublishTime,
     string Html, string Permalink)
 {
-    /// <summary>文章在论坛站点上的绝对地址。</summary>
-    public string Url => QlForum.BaseUrl + Permalink;
+    /// <summary>文章在论坛站点上的绝对地址；站点未配置时保留相对地址。</summary>
+    public string Url => QlDeployment.ForumUrl(Permalink);
 }
 
 /// <summary>
@@ -30,8 +30,7 @@ public sealed record QlForumArticle(string Name, string Title, string? Author, s
 /// </summary>
 public static class QlForum
 {
-    /// <summary>论坛根地址（HTTPS 不可用，保留 HTTP）。</summary>
-    public const string BaseUrl = "http://forum.example.com";
+    // 根地址来自部署配置 deployment.forum.baseUrl（空值由 QlDeployment 统一判定）。
 
     private const string ListApiPath = "/apis/api.content.halo.run/v1alpha1/posts";
 
@@ -40,7 +39,7 @@ public static class QlForum
     /// <param name="size">每页数量。</param>
     public static async Task<IReadOnlyList<QlForumPost>> FetchPostsAsync(int page, int size,
         CancellationToken ct = default)
-        => await FetchPostsAsync(BaseUrl, page, size, ct).ConfigureAwait(false);
+        => await FetchPostsAsync(QlDeployment.RequireForumBaseUrl(), page, size, ct).ConfigureAwait(false);
 
     /// <summary>抓取一页帖子（测试可指定 base URL）。</summary>
     public static async Task<IReadOnlyList<QlForumPost>> FetchPostsAsync(string baseUrl, int page,
@@ -86,7 +85,7 @@ public static class QlForum
     /// <summary>从 RSS 抓取全部帖子（内容 API 故障时的兜底）。</summary>
     public static async Task<IReadOnlyList<QlForumPost>> FetchPostsFromRssAsync(
         CancellationToken ct = default)
-        => await FetchPostsFromRssAsync(BaseUrl, ct).ConfigureAwait(false);
+        => await FetchPostsFromRssAsync(QlDeployment.RequireForumBaseUrl(), ct).ConfigureAwait(false);
 
     /// <summary>从指定站点的 RSS 抓取帖子（测试可指定 base URL）。</summary>
     public static async Task<IReadOnlyList<QlForumPost>> FetchPostsFromRssAsync(string baseUrl,
@@ -151,7 +150,7 @@ public static class QlForum
 
     /// <summary>按 Halo 内容 API 的 name 抓取文章。</summary>
     public static async Task<QlForumArticle> FetchArticleAsync(string name, CancellationToken ct = default)
-        => await FetchArticleAsync(BaseUrl, name, ct).ConfigureAwait(false);
+        => await FetchArticleAsync(QlDeployment.RequireForumBaseUrl(), name, ct).ConfigureAwait(false);
 
     /// <summary>按 Halo 内容 API 的 name 抓取文章（测试可指定 base URL）。</summary>
     public static async Task<QlForumArticle> FetchArticleAsync(string baseUrl, string name,
@@ -183,7 +182,8 @@ public static class QlForum
     /// <param name="permalink">相对地址，必须落在 <c>/archives/</c> 下。</param>
     public static async Task<QlForumArticle> FetchArticleFromPageAsync(string permalink,
         CancellationToken ct = default)
-        => await FetchArticleFromPageAsync(BaseUrl, permalink, ct).ConfigureAwait(false);
+        => await FetchArticleFromPageAsync(QlDeployment.RequireForumBaseUrl(), permalink, ct)
+            .ConfigureAwait(false);
 
     /// <summary>从指定站点的渲染页抓取正文（测试可指定 base URL）。</summary>
     public static async Task<QlForumArticle> FetchArticleFromPageAsync(string baseUrl,
@@ -210,7 +210,8 @@ public static class QlForum
     /// <summary>按帖子抓正文：先试内容 API，失败或 RSS 来源时退回渲染页。</summary>
     public static async Task<QlForumArticle> FetchArticleForPostAsync(QlForumPost post,
         CancellationToken ct = default)
-        => await FetchArticleForPostAsync(BaseUrl, post, ct).ConfigureAwait(false);
+        => await FetchArticleForPostAsync(QlDeployment.RequireForumBaseUrl(), post, ct)
+            .ConfigureAwait(false);
 
     /// <summary>按帖子抓正文（测试可指定 base URL）。</summary>
     public static async Task<QlForumArticle> FetchArticleForPostAsync(string baseUrl,

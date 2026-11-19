@@ -40,7 +40,8 @@ public static class QlMrpackManifest
     /// <exception cref="IOException">zip 打不开时。</exception>
     public static QlManifest BuildFromMrpack(string mrpackPath)
     {
-        var baseUrl = QlConstants.PublisherFallbackBaseUrl.TrimEnd('/') + "/";
+        // 发布器兜底前缀来自部署配置；空值 = 清单只用包内索引地址。
+        string? baseUrl = QlDeployment.HasPublisher ? QlDeployment.PublisherBaseUrl + "/" : null;
         var packName = DefaultPackName;
         var packVersion = DefaultPackVersion;
 
@@ -76,7 +77,7 @@ public static class QlMrpackManifest
 
     // ───────────────────────── index 条目 ─────────────────────────
 
-    private static void CollectIndexEntries(QlMrpack.MrpackIndex index, string baseUrl,
+    private static void CollectIndexEntries(QlMrpack.MrpackIndex index, string? baseUrl,
         List<QlManifest.FileEntry> stdMods, List<QlManifest.FileEntry> commonFiles,
         HashSet<string> knownPaths, ref int rpuCount, ref int skippedCount)
     {
@@ -112,7 +113,13 @@ public static class QlMrpackManifest
                 continue;
             }
 
-            var urls = new List<string>(file.Downloads) { baseUrl + EncodeUrlPath(path) };
+            var urls = new List<string>(file.Downloads);
+            if (baseUrl is not null) urls.Add(baseUrl + EncodeUrlPath(path));
+            if (urls.Count == 0)
+            {
+                skippedCount++; // 没有可下载地址：本地同步无法落位
+                continue;
+            }
             Add(route, path, sha1, file.FileSize != 0 ? file.FileSize : file.Size, urls,
                 stdMods, commonFiles);
         }
@@ -120,7 +127,7 @@ public static class QlMrpackManifest
 
     // ───────────────────────── overrides 条目 ─────────────────────────
 
-    private static void CollectOverrideEntries(ZipArchive zip, string baseUrl,
+    private static void CollectOverrideEntries(ZipArchive zip, string? baseUrl,
         List<QlManifest.FileEntry> stdMods, List<QlManifest.FileEntry> commonFiles,
         HashSet<string> knownPaths, ref int rpuCount, ref int skippedCount, ref int coveredByIndex)
     {
@@ -164,8 +171,12 @@ public static class QlMrpackManifest
             }
 
             var (sha1, size) = HashEntry(zipEntry);
-            Add(route, relative, sha1, size, new List<string> { baseUrl + EncodeUrlPath(relative) },
-                stdMods, commonFiles);
+            // overrides 条目在本地同步时优先用 zip 内嵌载荷；没有配置发布器时留空 URL 列表，
+            // 不伪造地址（远端 manifest 校验只在加载外部清单时执行）。
+            var urls = baseUrl is null
+                ? new List<string>()
+                : new List<string> { baseUrl + EncodeUrlPath(relative) };
+            Add(route, relative, sha1, size, urls, stdMods, commonFiles);
         }
     }
 
@@ -209,14 +220,53 @@ public static class QlMrpackManifest
                 [QlManifest.ChannelMods] = new() { Label = "官方包", Mods = stdMods, Files = new() },
                 [QlManifest.ChannelCommon] = new() { Label = "公共文件", Mods = new(), Files = commonFiles },
             },
-            Servers = new List<QlManifest.QlServer>
-            {
-                new() { Id = "qinglan-main", Name = "轻蓝服务器", Address = "mc.example.com:32650", Kind = "minecraft" },
-                new() { Id = "mtr-web", Name = "MTR 地图", Address = "mc.example.com:14614", Kind = "mtr-web" },
-                new() { Id = "mtr-reporter", Name = "MTR 数据", Address = "mc.example.com:19451", Kind = "mtr-reporter" },
-            },
+            Servers = BuildServers(),
         };
     }
+
+    /// <summary>按部署配置生成 servers 段；未配置的服务不写入。</summary>
+    private static List<QlManifest.QlServer> BuildServers()
+    {
+        var servers = new List<QlManifest.QlServer>();
+        var dep = QlDeployment.Current;
+
+        if (QlDeployment.HasServer)
+        {
+            servers.Add(new()
+            {
+                Id = "qinglan-main",
+                Name = QlDeployment.ServerName,
+                Address = dep.Server.SlpHost + ":" + dep.Server.SlpPort,
+                Kind = "minecraft",
+            });
+        }
+        if (QlDeployment.HasMtr)
+        {
+            servers.Add(new()
+            {
+                Id = "mtr-web",
+                Name = "MTR 地图",
+                Address = AuthorityOf(QlDeployment.MtrBaseUrl),
+                Kind = "mtr-web",
+            });
+        }
+        if (QlDeployment.HasReporter)
+        {
+            servers.Add(new()
+            {
+                Id = "mtr-reporter",
+                Name = "MTR 数据",
+                Address = AuthorityOf(QlDeployment.ReporterBaseUrl),
+                Kind = "mtr-reporter",
+            });
+        }
+        return servers;
+    }
+
+    private static string AuthorityOf(string url)
+        => Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            ? (uri.IsDefaultPort ? uri.Host : uri.Host + ":" + uri.Port)
+            : url;
 
     // ───────────────────────── 判定与工具 ─────────────────────────
 

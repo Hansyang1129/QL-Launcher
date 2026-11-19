@@ -1,0 +1,48 @@
+{
+  "_comment": "轻蓝启动器配置模板：复制为 <启动器目录>/data/config/config.json 后按需填写。A 类部署字段留空 = 对应模块隐藏并显示“配置未就绪”，不会发起任何请求；B 类登录端点留空 = 自动使用微软官方地址。开源仓库不包含真实部署值。",
+  "gameDir": "",
+  "javaDir": "",
+  "playerName": "",
+  "maxMemoryMb": 0,
+  "microsoftClientId": "",
+  "microsoftAccountName": "",
+  "microsoftRefreshToken": "",
+  "deployment": {
+    "_comment_server": "Minecraft 服务器：状态页 SLP 探测 + 生成的清单 servers 段。name 可留空（界面回落 host:port）。",
+    "server": {
+      "name": "",
+      "slpHost": "",
+      "slpPort": 0
+    },
+    "_comment_mtr": "MTR 地图 API 根地址（同时用于 MTR 页、地图页和状态页探测）。例如 https://mtr.example.com",
+    "mtr": {
+      "baseUrl": ""
+    },
+    "_comment_reporter": "MTR 数据上报服务根地址（状态页探测 <baseUrl>/login）。",
+    "reporter": {
+      "baseUrl": ""
+    },
+    "_comment_forum": "论坛站点根地址（Halo API、RSS 与文章外链）。例如 https://forum.example.com",
+    "forum": {
+      "baseUrl": ""
+    },
+    "_comment_sync": "整合包清单条目的发布器兜底下载前缀；留空 = 只用包内索引里的下载地址。",
+    "sync": {
+      "publisherBaseUrl": ""
+    },
+    "_comment_auth": "微软登录端点。全部留空即可使用官方端点；只有自建代理时才需要填写。",
+    "auth": {
+      "deviceCodeUrl": "",
+      "tokenUrl": "",
+      "xblAuthUrl": "",
+      "xstsAuthUrl": "",
+      "mcLoginUrl": "",
+      "mcProfileUrl": ""
+    },
+    "_comment_logReport": "日志上报占位：当前版本没有上传实现，保持 false 即可。",
+    "logReport": {
+      "enabled": false,
+      "url": ""
+    }
+  }
+}

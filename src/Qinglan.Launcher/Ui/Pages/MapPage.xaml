@@ -58,9 +58,9 @@
                                    Margin="0,8,0,0" TextAlignment="Center"
                                    AutomationProperties.AutomationId="MapFallbackDetail"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,0">
-                            <Button Content="在浏览器打开地图" Style="{StaticResource BtnPrimary}"
+                            <Button x:Name="BtnFallbackOpen" Content="在浏览器打开地图" Style="{StaticResource BtnPrimary}"
                                     Click="OnOpenExternal"/>
-                            <Button Content="重试" Style="{StaticResource BtnGhost}" Margin="8,0,0,0"
+                            <Button x:Name="BtnFallbackRetry" Content="重试" Style="{StaticResource BtnGhost}" Margin="8,0,0,0"
                                     Click="OnReload"/>
                         </StackPanel>
                     </StackPanel>

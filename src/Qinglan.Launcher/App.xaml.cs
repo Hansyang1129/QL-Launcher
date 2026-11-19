@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using Qinglan.Launcher.Core;
 
 namespace Qinglan.Launcher;
 
@@ -23,6 +24,7 @@ public partial class App : Application
         Directory.CreateDirectory(DataDir);
         Directory.CreateDirectory(ConfigDir);
         MigrateLegacyConfig();
+        QlDeployment.Load(QlConfig.Load(ConfigDir));
         DispatcherUnhandledException += (_, args) =>
         {
             Globals.Log("未处理异常: " + args.Exception);

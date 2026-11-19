@@ -26,4 +26,16 @@ dotnet run --project tests/Qinglan.Tests          # 引擎测试（无外部依�
 dotnet publish src/Qinglan.Launcher -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true
 ```
 
+## 配置
+
+仓库只包含空壳模板 [`config.example.json`](config.example.json)，**不包含任何真实部署端点、OAuth client id 或日志上报地址**。复制到 `<启动器目录>/data/config/config.json` 后填写 `deployment` 段：
+
+- 留空的 `server` / `mtr` / `reporter` / `forum` / `sync.publisherBaseUrl`：对应模块显示统一的“配置未就绪”占位，不发起请求；
+- 留空的 `auth.*`：自动使用微软官方登录端点，离线启动不受影响；
+- `microsoftClientId`：仅本机配置，用于启用微软正版登录。
+
+`data/` 已在 `.gitignore` 中，真实配置不会进入版本库。
+
+游戏内 RPU 客户端为闭源组件：本仓库只保留更新按钮、进度条和日志展示三个接口挂点，并保证同步不触碰 `qlrpu/**` 与 `config/qlrpu-client.json`。
+
 许可：本仓库为独立实现（自有代码，不含 PCL/HMCL 源码）；数据格式与服务端沿用轻蓝社区既有设施。

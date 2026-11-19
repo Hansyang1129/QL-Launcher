@@ -78,7 +78,7 @@
   成果：01-home / 02-sync / 03-status / 04-settings 四页真窗截图落档 `ql-tmp/shots/`；首页
   MTR 2.0 主视觉 + 启动游戏、同步页 manifest/频道/可选组/种子导入、状态页 M3 占位、设置页
   游戏目录 + 关于，底部状态条随页切换。构建 0 错 0 警，引擎测试态不变（119/119 未触碰）。
-  ④ **产品事实（用户口述）**：真实游戏目录 `<gameDir>\.minecraft\versions\Qinglan-2nd-RPU\`；
+  ④ **产品事实（用户口述）**：真实游戏目录形如 `<gameDir>\versions\Qinglan-2nd-RPU\`；
   其 `mods/qlrpu-client-qlserver-1.0.0.jar`（4.8MB）是**资源包同步引擎 jar**（客户端+服务端），
   归整合包/资源服务器侧管；**模组不走独立 jar**，计划统一由包更新（manifest 通道）落地——
   本仓库同步引擎语义不变，QLRPU jar 在 sync 视角按 manifest 条目正常同步/不误删即可。
@@ -122,50 +122,22 @@
   JRE 只吃 raw 下载（lzma-only 明确报错，v1 不手写 LZMA 解码）。QlHttp 超时 60s → 10min
   （ConnectTimeout 15s 单独兜底；44MB JRE / 慢索引单请求需要长尾）。
   下一站：M2b-2 UI 接线（首页 启动游戏 → 账号/登录弹层/内存 → 预备进度 → 日志面板 + 版行流）。
-- **2026-11-17 RPU 引擎对接（缓存预热）**：启动器同步引擎对接 RPU 系统（`qlrpu-client-qlserver-1.0.0.jar`
-  ↔ `rpu.example.com`），替代已死的旧 manifest 源。范围锁定**缓存预热**：只填充
-  `<gameDir>/qlrpu/cache/objects`，不解密、不装 /keys（明文完整认证是游戏内 Mod 挂载期的事，
-  引擎无 VERIFYING 阶段，共 6 阶段：初始化/在线授权与获取发布/扫描本地文件/探测下载源/下载缺失
-  资源/校验完成），永不碰 objects 外的任何文件。产物：`Core/Sync/Rpu/` 六件——RpuEd25519（RFC8032
-  零依赖验签，BigInteger）、RpuProtocol（模型/验签/校验/QRPUOBJ1 分段对象）、RpuClient（sessions/
-  latest/manifest/sources/check/tickets/keys + 429/503 退避 + 401 重签）、RpuCache（密文名
-  `<cipherSha256>.obj/.part`、update.lock 区域锁与 Java FileLock 互查、current.json 原子提交、
-  7..90 天保留期清理）、RpuDeploymentConfig（exe 旁 qlrpu-client.json 覆盖 apiBase/公钥，SPKI 去
-  头 32B）、RpuSyncEngine（check 128/批、无效对象上报空 cipherSha256、required 必须批内子集、
-  工单 3 次重试 1s/2s、commit 快照后再清理）。
-  线上地面真相（探针实测，`ql-tmp/rpu-live/`）：releaseId `a5f2…1655`、30 包/6964 文件/密文
-  1,555,033,651B；**实测翻出四处协议细节**：① 清单 `packFormat` 是数字（15），Gson 对 String 字段
-  数字/字符串二象兼容——STJ 直接炸，补 `RpuNumberOrStringConverter`；② `resourcePath` 真实规则是
-  「非空/无首尾斜杠/无反斜杠/无盘符/段非空且非 . ../无 <0x20 与 0x7F」——**无小写限制无长度上限**
-  （小写正则 `[a-z0-9/._-]+` 属挂载期 PackResourceIndex，与清单校验无关；线上真实路径
-  `TW_spectial.png` 大写直接打脸第一版）；③ `validate` 的条目失败共用一句「资源路径、大小或哈希
-  无效。」，包元数据要求 name/description 非空且包 id 全局唯一（「资源包元数据无效。」），objectId
-  冲突比四字段，空 packs 合法；④ ClientApi 的 UA 是硬编码字面量 `QingLanRPU/1.0 protocol/1`
-  （与 modVersion 1.0.0 无关）且带 `Accept-Encoding: identity`。
-  本轮修出的真 bug：AesGcm.Decrypt 参数序（aad 占了 plaintext 槽，空对象即炸）；RpuClient
-  EnsureSession↔Exchange 无限互递归（/sessions 的 POST 必须跳过会话前置）；ProbeSourcesAsync
-  从未上报 Sources 阶段事件。测试侧两坑：**用户开着 Watt Toolkit 系统代理且旁路不含 127.0.0.1**，
-  默认 HttpClient 把回环请求全送进代理导致老套件 38 项连坐——tests/Program.cs 统一
-  `HttpClient.DefaultProxy = new WebProxy()`；MiniHttpServer 只对 responder 路径记录请求头。
-  测试 **379/379 全绿**（212 + RpuSuite 11 组 167 项）：Ed25519 RFC/JDK 向量、线上信封回归（真实
-  3MB 清单验签+解析+校验）、分段对象往返/篡改、清单校验、缓存锁/快照/对象/清理、部署配置、
-  客户端形状/重试/错误文案、引擎端到端（假服务器四轮：全量下载→零下载+本地快照→陈旧清理→
-  篡改自愈）。构建 0 错 0 警。
-  下一步：M2b-2 UI 接线 → M3 状态页 → M4 发布；RPU 的 UI 挂点（同步页内嵌 RPU 进度）待 M2b-2 一并接。
+- **2026-11-17 RPU 客户端（闭源组件）**：游戏内 RPU 客户端为闭源组件，启动器不实现其更新协议；
+  同步引擎只保证 `<c>qlrpu/**</c>` 与 `<c>config/qlrpu-client.json</c>` 不被覆盖（handover 交接），
+  同步页只保留「按钮唤醒 / 进度条 / 日志展示」三个接口挂点。协议细节与部署端点不进入本仓库。
 - **2026-11-17 对接 QL-HMCL 新版同步（包驱动引擎）**：同步栈按 QL-HMCL fork 新版引擎整体重写
   （地面真相全读：QLPackSync/QLSyncState/QLConstants/QLManifest(Tool)/QLDirectoryLayout/
   QLDblPack/QLPackGuard/QLInstances/ui.QLSyncPage）。范式变更：**没有 manifest 服务器**——
-  fork 里 `DEFAULT_MANIFEST_URL=""`（files.example.com 占位从未上线，假 URL 输入框删除）；
+  fork 里 `DEFAULT_MANIFEST_URL=""`（发布器占位 URL 从未上线，假 URL 输入框删除）；
   更新源 = 整合包自己的 `.mrpack`（同步页现场挑文件，否则回落实例 `.ql-pack/` 缓存最新包，
   构建里不烘任何远端地址）。新组件：`Mrpack.cs`（索引模型/ReadHead/版本归一剥 `-full`）、
   `MrpackManifest.cs`（buildFromMrpack 移植：`mods/**`→std 单频道；`config|shaderpacks|
   resourcepacks/**`+`options.txt`→common；`PCL/`、`servers.dat`、`modrinth.index.json` 跳过；
   `fabric-loader-*`/`fabric-api*` 排除；可选组按文件名 voxy/dh/axiom 且只有 mod 进组；
   index 覆盖 overrides；sha1 门 = 40 位长度，Java 精确不查字符集）、`PackSync.cs`（overrides
-  载荷优先直写零网络 → URL 候选序（CDN 在前、发布器兜底 URL 垫底，与 Java 字节对齐）；
-  `.qlimport` 临时 + 原子替换；SHA-1 复验错删；plain↔`.disabled` 姊妹收养；purge 只清计划外；
-  RPU 遗留 = handedOver 交接不删；**部分失败状态照记**（Java 同款，失败件下轮重规划）；
-  dblpack 兜底重生成）、`PackGuard.cs`（mods 里 qinglanrpuclient 门禁，停用副本不算）、
+  载荷优先直写零网络 → URL 候选序；`.qlimport` 临时 + 原子替换；SHA-1 复验错删；
+  plain↔`.disabled` 姊妹收养；purge 只清计划外；RPU 遗留 = handedOver 交接不删；
+  **部分失败状态照记**（Java 同款，失败件下轮重规划）；dblpack 兜底重生成）、
   `Instances.cs`（只管 `Qinglan-2nd-RPU`：版本隔离目录优先，平铺实例兼容）。状态文件新增
   `packUrl`（null=重新挑包；空白归一 null；传 null 保留已记录值）与 `optionalRecorded`
   （全新实例随包全启用，记录后缺席组=用户主动停用）；`manifestUrl`/`activeChannel` 只读兼容。
@@ -187,7 +159,7 @@
   overrides 按条目名排序遍历（Java 同序），可选组顺序是 ASCII 排序序而非声明序。
   截图 `ql-tmp/sync-page.png`：实例卡「Qinglan-2nd-RPU（平铺）」+ RPU mod 门禁在位 +
   包卡 + RPU 占位，假 URL 框/频道切换/取消键全部消失。构建 0 错 0 警。
-  下一步：真包在 <gameDir> 实例现场跑一轮同步实测 → M2b-2 UI 接线 → M3 状态页 → M4 发布。
+  下一步：真包在本地实例现场跑一轮同步实测 → M2b-2 UI 接线 → M3 状态页 → M4 发布。
 - **2026-11-18 真包实测 + RPU 闭源口径 + 摘要保留**：① 真包 `Qinglan-2nd-RPU 26.9.1.mrpack`
   （68.3MB）解析零漂移：versionId=26.9.1、MC 1.20.1、loader 0.19.5、std=70、common=176
   （config 172 / options.txt 1 / shaderpacks 3）、可选组 axiom/dh/voxy。实例
@@ -245,13 +217,13 @@
   取消向上抛出。状态页重写：刷新卡（时间戳/汇总/30s 自动刷新提示）、三张端点卡（标签/地址/延迟/
   在线人数/MOTD/失败原因 + 在线离线胶囊），`Loaded`/`Unloaded` 启停 30s 计时器并在每轮结束重置
   （手动与自动共用 busy 闸门，离页即暂停）；MOTD 的 §x 传统颜色码只在展示层剥除，引擎结果保持原文。
-  **两处真实环境坑**：① QL-HMCL 的默认表探三个服务的根路径，实测 `:14614`/`:19451` 根路径
-  404/404、`:19451` 其余路径 401（服务在线，只是根路径不是健康页）——改探真实 200 路径：
+  **两处真实环境坑**：① QL-HMCL 的默认表探三个服务的根路径，实测 MTR/Reporter 根路径
+  404/404、Reporter 其余路径 401（服务在线，只是根路径不是健康页）——改探真实 200 路径：
   MTR 地图 API `/mtr/api/map/stations-and-routes?dimension=minecraft:overworld`、Reporter `/login`。
-  ② 系统代理（Watt Toolkit `127.0.0.1:26561`）对非标端口直接回 404，`HttpClient` 默认走代理时
+  ② 系统代理（Watt Toolkit 等）对非标端口直接回 404，`HttpClient` 默认走代理时
   启动器 1/3 在线而同机 curl 全 200；状态探测改用 `UseProxy=false` 的专用 `ProbeClient` 强制直连，
   与 SLP 的直连 TCP 同口径。UIA E2E（`ql-tmp/e2e-status.ps1`）：首轮 18:24:40 → **3/3 在线**——
-  轻蓝 SLP 延迟 88 ms、在线 0/16、MOTD「轻蓝 二周目-26.8.x / 直接运维: <player>…」可读；
+  SLP 延迟、在线人数与 MOTD 均正确解析；
   MTR Web HTTP 200 115 ms；Reporter HTTP 200 131 ms；30s 后 18:25:10 时间戳更新、延迟重测
   （64/116/98 ms），自动刷新实证。截图 `ql-tmp/e2e-status/01-status.png`、`02-auto-refresh.png`。
   测试 **459/459 全绿**（+50：SLP 握手字节/分帧异常/varint 过长/读取超时/连接拒绝、HTTP 200/500/404/
@@ -264,8 +236,8 @@
   真实端点复测 0/16 空状态：`03-players.png`。加速器双态：开启（ProxyEnable=1，e2e3）与关闭
   （=0，e2e4）各跑一轮，均 **3/3 在线**——`UseProxy=false` 的 ProbeClient 不受系统代理开关影响。
   测试仍 **459/459 全绿**，构建 0 错 0 警。下一步：M4 发布打包。
-- **2026-11-18 M4 三页：MTR 地图 / MTR 轨交 / 论坛**：① **MTR 地图**用 WebView2 内嵌服务器
-  `http://mc.example.com:14614/`，用户目录放 `data/webview2`，站内弹窗交给系统浏览器；运行时
+- **2026-11-18 M4 三页：MTR 地图 / MTR 轨交 / 论坛**：① **MTR 地图**用 WebView2 内嵌部署配置中的
+  MTR 地图入口，用户目录放 `data/webview2`，站内弹窗交给系统浏览器；运行时
   缺失、初始化失败、导航失败都切同一块「webview 不可用」提示并保留浏览器入口（WebView2 是独立
   HWND，提示层显示前先隐藏 WebView，避免盖住 WPF 覆盖层）。SDK 三件 DLL 直接放 `lib/webview2/`
   随仓库分发，csproj 用 `<Reference>` + `<Content>` 落地，仍然零 NuGet。② **MTR 轨交**：站台级
@@ -299,7 +271,7 @@
   早期/被中止的导航完成事件被当成地图结果：旧代码一收到失败就 `Web.Visibility=Collapsed`，反而把
   真正的地图导航一起中止，形成“越失败越隐藏、越隐藏越失败”的循环。改为只认发往地图 URL 的本次
   导航（忽略 `about:blank` 等非地图事件）、加 15s 超时兜底，并记录 `开始导航/导航完成 source=`；
-  日志实证 `开始导航: http://mc.example.com:14614/` → `成功 source=http://mc.example.com:14614/`，
+  日志实证 `开始导航: <MTR 地图入口>` → `成功 source=<MTR 地图入口>`，
   地图恢复内嵌渲染（`ql-tmp/e2e-m4/01-map.png`）。构建 0 错 0 警。
 - **2026-11-18 品牌图标 + 配置目录 + 英文发布名**：用户提供的 LOGO 落到
   `Assets/branding/logo.png`，用 System.Drawing 生成 7 个尺寸（16/24/32/48/64/128/256）的
@@ -311,3 +283,13 @@
   英文名：`Desktop\QinglanLauncher.exe`（单文件）、`Desktop\QinglanLauncher\`（自包含目录）、
   `Desktop\QinglanLauncher.lnk`；旧中文 exe/快捷方式/目录已清理。截图 `ql-tmp/logo-check.png`
   确认标题栏 LOGO 生效；测试仍 **577/577 全绿**，构建 0 错 0 警。
+- **2026-11-19 开源化架构剥离**：部署端点/凭据全部外置到 `data/config/config.json` 的
+  `deployment` 段（A 类留空 = 模块禁用；B 类微软登录端点留空 = 官方默认）。新增
+  `Core/Config/QlDeployment.cs`（装载/归一化/模块判定）与 `Ui/ConfigNotice.cs`（统一“配置未就绪”
+  卡片），状态/MTR/地图/论坛页在空配置下只显示占位、不发请求，状态轮询不启动；配置模板
+  `config.example.json` 只保留空壳，真实值由本地 `data/`（已 ignore）提供。同步引擎生成清单时
+  发布器兜底前缀与 `servers` 段改由部署配置推导，空值不伪造 URL。删除整个
+  `Core/Sync/Rpu/` 与 `PackGuard`（同步页不再按 RPU mod 门禁），保留 `qlrpu/**` +
+  `config/qlrpu-client.json` 交接保护和同步页三个接口挂点（按钮唤醒/进度/日志）。论坛与 MTR
+  网络路径补 CancelToken 与失败降级，MTR 四项拉取互不连坐。测试 456/456 全绿，构建 0 错 0 警；
+  空配置实机启动验证：四页均显示统一占位、无异常、无白屏。

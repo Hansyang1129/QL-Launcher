@@ -1,4 +1,5 @@
 using System.Text;
+using Qinglan.Launcher.Core;
 using Qinglan.Launcher.Core.Forum;
 
 namespace Qinglan.Tests;
@@ -36,6 +37,10 @@ internal static class ForumSuite
     {
         await using var srv = await MiniHttpServer.StartAsync(Fx.TempDir());
         srv.AddFile("/apis/api.content.halo.run/v1alpha1/posts", Encoding.UTF8.GetBytes(ListJson));
+        QlDeployment.Set(new QlDeploymentConfig
+        {
+            Forum = new QlEndpointDeployment { BaseUrl = srv.BaseUrl },
+        });
 
         var posts = await QlForum.FetchPostsAsync(srv.BaseUrl, 1, 20);
         T.CheckEq("列表两篇", 2, posts.Count);
@@ -50,7 +55,7 @@ internal static class ForumSuite
         T.CheckEq("浏览数", 12, first.Visits);
         T.CheckEq("点赞数", 3, first.Upvotes);
         T.Check("列表来源不是 RSS", !first.FromRss);
-        T.CheckEq("绝对地址使用论坛站点", QlForum.BaseUrl + "/archives/post-a", first.Url);
+        T.CheckEq("绝对地址使用论坛站点", srv.BaseUrl.TrimEnd('/') + "/archives/post-a", first.Url);
 
         T.CheckEq("缺字段标题为空", "乙帖", posts[1].Title);
         T.Check("缺作者为 null", posts[1].Author is null);
@@ -75,7 +80,7 @@ internal static class ForumSuite
         <?xml version="1.0" encoding="UTF-8"?>
         <rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
           <channel>
-            <title>轻蓝论坛</title><link>http://forum.example.com</link><description>feed</description>
+            <title>轻蓝论坛</title><link>http://forum.example</link><description>feed</description>
             <item>
               <title>RSS 帖</title>
               <link>http://localhost:8090/archives/abc-123</link>

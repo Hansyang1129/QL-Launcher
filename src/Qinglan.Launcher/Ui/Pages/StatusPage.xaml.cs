@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Qinglan.Launcher.Core;
 using Qinglan.Launcher.Core.Status;
 
 namespace Qinglan.Launcher.Ui.Pages;
@@ -21,6 +22,8 @@ public partial class StatusPage : UserControl
     private static readonly Brush ChipBg = Frozen(0xEA, 0xF3, 0xFD);
 
     private readonly DispatcherTimer _timer = new();
+    private CancellationTokenSource? _cts;
+    private IReadOnlyList<QlProbe> _probes = Array.Empty<QlProbe>();
     private bool _busy;
     private bool _visible;
 
@@ -39,6 +42,19 @@ public partial class StatusPage : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         _visible = true;
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+
+        _probes = QlServerStatus.BuildDefaultProbes();
+        if (_probes.Count == 0)
+        {
+            ShowUnconfigured();
+            return;
+        }
+
+        BtnRefresh.IsEnabled = true;
+        RefreshHintText.Text = "停留本页时每 30 秒自动刷新；离开页面即暂停。";
         _timer.Stop();
         _timer.Start();
         _ = RefreshAsync();
@@ -48,22 +64,42 @@ public partial class StatusPage : UserControl
     {
         _visible = false;
         _timer.Stop();
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
     }
 
-    private void OnRefresh(object sender, RoutedEventArgs e) => _ = RefreshAsync();
+    private void OnRefresh(object sender, RoutedEventArgs e)
+    {
+        _probes = QlServerStatus.BuildDefaultProbes();
+        if (_probes.Count == 0)
+        {
+            ShowUnconfigured();
+            return;
+        }
+        _ = RefreshAsync();
+    }
 
     /// <summary>探测整张表并重绘。手动刷新与自动轮询共用一个 busy 闸门。</summary>
     private async Task RefreshAsync()
     {
         if (_busy) return;
+        var probes = _probes;
+        if (probes.Count == 0)
+        {
+            ShowUnconfigured();
+            return;
+        }
+
+        var ct = _cts?.Token ?? CancellationToken.None;
         _busy = true;
         BtnRefresh.IsEnabled = false;
         RefreshStatusText.Text = "正在探测服务器…";
         SummaryText.Text = "";
         try
         {
-            var probes = QlServerStatus.DefaultProbes;
-            var results = await QlServerStatus.ProbeAllAsync(probes, ProbeTimeoutMs);
+            var results = await QlServerStatus.ProbeAllAsync(probes, ProbeTimeoutMs, ct);
+            if (ct.IsCancellationRequested) return;
             Render(probes, results);
 
             int online = results.Count(r => r.Online);
@@ -73,6 +109,10 @@ public partial class StatusPage : UserControl
                 online == results.Count ? "OkGreen" : "TextSecondary");
             if (_visible)
                 MainWindow.Instance.SetStatus("服务器状态：" + online + "/" + results.Count + " 在线");
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // 离页取消：保留上一轮结果，不写入失败提示。
         }
         catch (Exception ex)
         {
@@ -84,14 +124,35 @@ public partial class StatusPage : UserControl
         finally
         {
             _busy = false;
-            BtnRefresh.IsEnabled = true;
-            if (_visible)
+            BtnRefresh.IsEnabled = !ct.IsCancellationRequested;
+            if (_visible && !ct.IsCancellationRequested && probes.Count > 0)
             {
                 // 手动与自动探测都重新计时，避免完成瞬间立刻又触发一轮。
                 _timer.Stop();
                 _timer.Start();
             }
         }
+    }
+
+    /// <summary>三个来源都为空：统一占位，不启动轮询、不发请求。</summary>
+    private void ShowUnconfigured()
+    {
+        _timer.Stop();
+        BtnRefresh.IsEnabled = false;
+        _probes = Array.Empty<QlProbe>();
+        ServerList.Children.Clear();
+        ServerList.Children.Add(ConfigNotice.Build(ConfigNotice.Status));
+        RefreshStatusText.Text = "未配置";
+        SummaryText.Text = "状态探测所需端点为空";
+        SummaryText.Foreground = (Brush)FindResource("TextSecondary");
+        RefreshHintText.Text = "配置后自动启用 30 秒轮询；当前不发请求。";
+        PlayerChips.Children.Clear();
+        PlayerCountText.Text = "—";
+        ShowPlayerHint("未配置 SLP 端点。");
+        PlayerSourceText.Text = "";
+        if (_visible)
+            MainWindow.Instance.SetStatus("服务器状态：未配置");
+        Globals.Log("状态页未配置：deployment.server / mtr / reporter 均为空");
     }
 
     private void Render(IReadOnlyList<QlProbe> probes, IReadOnlyList<QlProbeResult> results)

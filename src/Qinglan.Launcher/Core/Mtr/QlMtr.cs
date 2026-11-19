@@ -73,18 +73,14 @@ public sealed record QlMtrTimedDeparture(long DepartureAt, long ArrivalAt, long 
 /// </summary>
 public static class QlMtr
 {
-    /// <summary>地图 API 根地址；根路径同时承载 MTR 网页地图。</summary>
-    public const string BaseUrl = "http://mc.example.com:14614";
-
-    /// <summary>网页地图入口（WebView 使用）。</summary>
-    public const string WebMapUrl = BaseUrl + "/";
+    // 根地址来自部署配置 deployment.mtr.baseUrl（空值由 QlDeployment 统一判定）。
 
     private const string ApiPath = "/mtr/api/map/";
     private const string Dimension = "minecraft:overworld";
 
     /// <summary>抓取全网快照。</summary>
     public static async Task<QlMtrSnapshot> FetchSnapshotAsync(CancellationToken ct = default)
-        => await FetchSnapshotAsync(BaseUrl, ct).ConfigureAwait(false);
+        => await FetchSnapshotAsync(QlDeployment.RequireMtrBaseUrl(), ct).ConfigureAwait(false);
 
     /// <summary>抓取全网快照（测试可指定 base URL）。</summary>
     public static async Task<QlMtrSnapshot> FetchSnapshotAsync(string baseUrl, CancellationToken ct = default)
@@ -146,7 +142,7 @@ public static class QlMtr
 
     /// <summary>抓取所有线路的时刻表包（约 0.7 MB）。</summary>
     public static async Task<QlMtrDepartures> FetchDeparturesAsync(CancellationToken ct = default)
-        => await FetchDeparturesAsync(BaseUrl, ct).ConfigureAwait(false);
+        => await FetchDeparturesAsync(QlDeployment.RequireMtrBaseUrl(), ct).ConfigureAwait(false);
 
     /// <summary>抓取时刻表包（测试可指定 base URL）。</summary>
     public static async Task<QlMtrDepartures> FetchDeparturesAsync(string baseUrl,
@@ -188,7 +184,8 @@ public static class QlMtr
     /// <summary>取一批站台的实时到站；每站台最多 <paramref name="maxPerPlatform"/> 条。</summary>
     public static async Task<IReadOnlyList<QlMtrArrival>> FetchArrivalsAsync(
         IReadOnlyList<string> stationIdsHex, int maxPerPlatform, CancellationToken ct = default)
-        => await FetchArrivalsAsync(BaseUrl, stationIdsHex, maxPerPlatform, ct).ConfigureAwait(false);
+        => await FetchArrivalsAsync(QlDeployment.RequireMtrBaseUrl(), stationIdsHex, maxPerPlatform, ct)
+            .ConfigureAwait(false);
 
     /// <summary>取实时到站（测试可指定 base URL）。</summary>
     public static async Task<IReadOnlyList<QlMtrArrival>> FetchArrivalsAsync(string baseUrl,
@@ -238,7 +235,8 @@ public static class QlMtr
     /// <summary>向服务器路径查询一条最优路径。</summary>
     public static async Task<QlMtrDirections> FetchDirectionsAsync(string fromName, string toName,
         CancellationToken ct = default)
-        => await FetchDirectionsAsync(BaseUrl, fromName, toName, ct).ConfigureAwait(false);
+        => await FetchDirectionsAsync(QlDeployment.RequireMtrBaseUrl(), fromName, toName, ct)
+            .ConfigureAwait(false);
 
     /// <summary>向服务器路径查询一条最优路径（测试可指定 base URL）。</summary>
     public static async Task<QlMtrDirections> FetchDirectionsAsync(string baseUrl, string fromName,

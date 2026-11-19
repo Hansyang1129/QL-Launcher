@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Qinglan.Launcher.Core;
 using Qinglan.Launcher.Core.Mtr;
 
 namespace Qinglan.Launcher.Ui.Pages;
@@ -34,14 +35,49 @@ public partial class MtrPage : UserControl
     private bool _suppressSelection;
     private int _stationGeneration;
     private int _planGeneration;
+    private CancellationTokenSource? _cts;
 
     public MtrPage()
     {
         InitializeComponent();
         Loaded += (_, _) =>
         {
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = new CancellationTokenSource();
+
+            if (!QlDeployment.HasMtr)
+            {
+                ShowUnconfigured();
+                return;
+            }
+
+            BtnMtrRefresh.IsEnabled = true;
             if (!_loaded) _ = LoadAsync(false);
         };
+        Unloaded += (_, _) =>
+        {
+            // 让迟到的结果在 generation 检查处失效，再取消在途请求。
+            _stationGeneration++;
+            _planGeneration++;
+            _loading = false;
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
+        };
+    }
+
+    /// <summary>MTR 根地址为空：统一占位，不发任何请求。</summary>
+    private void ShowUnconfigured()
+    {
+        BtnMtrRefresh.IsEnabled = false;
+        MtrStatusText.Text = "MTR 未配置";
+        StationDetail.Children.Clear();
+        StationDetail.Children.Add(ConfigNotice.Build(ConfigNotice.Mtr));
+        PlanResults.Children.Clear();
+        PlanResults.Children.Add(ConfigNotice.Build(ConfigNotice.Mtr));
+        Globals.Log("MTR 页未配置：deployment.mtr.baseUrl 为空");
+        MainWindow.Instance.SetStatus("MTR 轨交：未配置");
     }
 
     // ─────────────────────────── 数据加载 ───────────────────────────
@@ -51,15 +87,17 @@ public partial class MtrPage : UserControl
     {
         if (_loading) return;
         if (_loaded && !force) return;
+        var ct = _cts?.Token ?? CancellationToken.None;
         _loading = true;
         BtnMtrRefresh.IsEnabled = false;
         MtrStatusText.Text = "查询中…";
         try
         {
-            var snapshotTask = QlMtr.FetchSnapshotAsync();
-            var departuresTask = FetchDeparturesSafeAsync();
+            var snapshotTask = QlMtr.FetchSnapshotAsync(ct);
+            var departuresTask = FetchDeparturesSafeAsync(ct);
             var snapshot = await snapshotTask;
             var departures = await departuresTask;
+            if (ct.IsCancellationRequested) return;
 
             _snapshot = snapshot;
             _departures = departures;
@@ -85,6 +123,10 @@ public partial class MtrPage : UserControl
             MainWindow.Instance.SetStatus("MTR 轨交：" + _stations.Count + " 站 / "
                 + _routeGroups.Count + " 线");
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // 离页取消：不写失败提示；下次进入会重新加载。
+        }
         catch (Exception ex)
         {
             MtrStatusText.Text = "MTR 地图 API 查询失败，请检查网络";
@@ -94,16 +136,20 @@ public partial class MtrPage : UserControl
         finally
         {
             _loading = false;
-            BtnMtrRefresh.IsEnabled = true;
+            BtnMtrRefresh.IsEnabled = QlDeployment.HasMtr;
         }
     }
 
-    /// <summary>时刻表是可选数据：抓取失败时车站/线路仍可浏览。</summary>
-    private static async Task<QlMtrDepartures?> FetchDeparturesSafeAsync()
+    /// <summary>时刻表是可选数据：抓取失败或取消时车站/线路仍可浏览。</summary>
+    private static async Task<QlMtrDepartures?> FetchDeparturesSafeAsync(CancellationToken ct = default)
     {
         try
         {
-            return await QlMtr.FetchDeparturesAsync();
+            return await QlMtr.FetchDeparturesAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return null;
         }
         catch (Exception ex)
         {
@@ -247,9 +293,10 @@ public partial class MtrPage : UserControl
     /// <summary>按站台视图：一次请求该站全部站台的实时到站，再按站台分组。</summary>
     private async Task LoadArrivalsAsync(StationChoice choice, int generation)
     {
+        var ct = _cts?.Token ?? CancellationToken.None;
         try
         {
-            var rows = await QlMtr.FetchArrivalsAsync(choice.Ids, TrainsPerPlatform);
+            var rows = await QlMtr.FetchArrivalsAsync(choice.Ids, TrainsPerPlatform, ct);
             if (generation != _stationGeneration || !ReferenceEquals(choice, _station)) return;
 
             long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -297,6 +344,10 @@ public partial class MtrPage : UserControl
                 }
                 StationDetail.Children.Add(Card(inner, padding: 14));
             }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // 离页或切站取消：不写失败提示。
         }
         catch (Exception ex)
         {
@@ -746,6 +797,7 @@ public partial class MtrPage : UserControl
         }
 
         int generation = ++_planGeneration;
+        var ct = _cts?.Token ?? CancellationToken.None;
         BtnPlan.IsEnabled = false;
         PlanResults.Children.Clear();
         PlanResults.Children.Add(Notice("正在规划路径…"));
@@ -756,7 +808,11 @@ public partial class MtrPage : UserControl
             {
                 try
                 {
-                    web = await QlMtr.FetchDirectionsAsync(from.ApiName, to.ApiName);
+                    web = await QlMtr.FetchDirectionsAsync(from.ApiName, to.ApiName, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    return;
                 }
                 catch (Exception ex)
                 {
@@ -787,6 +843,10 @@ public partial class MtrPage : UserControl
                 return;
             }
             foreach (var card in cards) PlanResults.Children.Add(card);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // 离页取消：不写失败提示。
         }
         catch (Exception ex)
         {

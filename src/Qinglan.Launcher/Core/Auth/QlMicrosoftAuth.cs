@@ -54,7 +54,7 @@ public sealed class QlMicrosoftAuth
 
     public QlMicrosoftAuth(QlMsEndpoints? endpoints = null, int slowDownPenalty = 5)
     {
-        _ep = endpoints ?? QlMsEndpoints.Real;
+        _ep = endpoints ?? QlDeployment.AuthEndpoints;
         _slowDownPenalty = slowDownPenalty;
     }
 
