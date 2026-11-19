@@ -1,6 +1,6 @@
 # 轻蓝启动器 (Qinglan Launcher)
 
-为「轻蓝 MTR 2.0」整合包社区定制的轻量启动器。全新 C#/WPF 实现，不基于 PCL/HMCL 源码，
+为「轻蓝 MTR 4.x」整合包社区定制的轻量启动器。全新 C#/WPF 实现，不基于 PCL/HMCL 源码，
 manifest v1 格式与 `ql-launcher`（HMCL fork）完全兼容，共用同一套资源服务器与发布工具。
 
 ## v1 功能（核心四件套）

@@ -94,9 +94,7 @@ public partial class HomePage : UserControl
         _loadingUi = true;
         try
         {
-            PlayerNameBox.Text = string.IsNullOrWhiteSpace(_config.PlayerName)
-                ? DefaultOfflineName()
-                : _config.PlayerName!;
+            PlayerNameBox.Text = (_config.PlayerName ?? "").Trim();
             var memIndex = Array.IndexOf(MemoryValues, _config.MaxMemoryMb);
             MemoryBox.SelectedIndex = memIndex >= 0 ? memIndex : 0;
         }
@@ -130,14 +128,6 @@ public partial class HomePage : UserControl
     }
 
     private int NeedJavaMajor => _version is { JavaMajor: > 0 } v ? v.JavaMajor : QlJavaLocator.DefaultMinMajor;
-
-    private static string DefaultOfflineName()
-    {
-        var raw = Environment.UserName ?? "";
-        var clean = new string(raw.Where(char.IsLetterOrDigit).ToArray());
-        if (clean.Length == 0) clean = "Steve";
-        return clean.Length > 16 ? clean[..16] : clean;
-    }
 
     /// <summary>首页只展示 Home 目录名（如 jdk-21），完整 java.exe 路径在悬停提示里。</summary>
     private static string JavaFolderName(QlJavaRuntime java)
@@ -198,7 +188,7 @@ public partial class HomePage : UserControl
         }
         else if (!configured)
         {
-            AccountHint.Text = "微软登录未启用：在「设置」填写 Azure 应用 client id 后即可登录正版账号；离线模式照常可用。";
+            AccountHint.Text = "微软登录未启用：在「设置」填写 Azure 应用 client id 后即可登录正版账号；离线模式填写玩家名后可启动。";
         }
         else if (_msRestoreFailed)
         {
@@ -206,7 +196,7 @@ public partial class HomePage : UserControl
         }
         else
         {
-            AccountHint.Text = "离线模式可直接启动；正版账号点右侧登录（设备码，无需密码输入到启动器）。";
+            AccountHint.Text = "离线模式填写玩家名后启动；正版账号点右侧登录（设备码，无需密码输入到启动器）。";
         }
         BtnMsLogin.ToolTip = configured ? null : "先在「设置」里填写微软应用 client id";
         UpdateControls();
@@ -363,6 +353,17 @@ public partial class HomePage : UserControl
             return;
         }
 
+        // 离线模式不提供默认玩家名：未登录微软且输入为空时先提示填写，避免静默使用假名。
+        bool msConfigured = _config.MicrosoftRefreshToken is { Length: > 0 } &&
+                            _config.MicrosoftClientId is { Length: > 0 };
+        if (_msAccount is null && !msConfigured && string.IsNullOrWhiteSpace(PlayerNameBox.Text))
+        {
+            LaunchStatus.Text = "请先填写离线玩家名。";
+            LaunchHint.Text = "离线启动需要 1–16 位玩家名；填写后即可启动。";
+            PlayerNameBox.Focus();
+            return;
+        }
+
         _prepCts = new CancellationTokenSource();
         var ct = _prepCts.Token;
         SetBusy(true);
@@ -513,7 +514,8 @@ public partial class HomePage : UserControl
         }
 
         var name = (PlayerNameBox.Text ?? "").Trim();
-        if (name.Length == 0) name = "Player";
+        if (name.Length == 0)
+            throw new InvalidOperationException("离线模式需要先在首页填写玩家名。");
         if (name.Length > 16) name = name[..16];
         _config.PlayerName = name;
         SaveConfigQuiet();

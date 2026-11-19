@@ -21,7 +21,7 @@
                 <StackPanel>
                     <Border Background="#D9FFFFFF" CornerRadius="14" Padding="18" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock Text="轻蓝 MTR 2.0" FontFamily="Microsoft YaHei UI" FontSize="28"
+                            <TextBlock Text="轻蓝 MTR 4.x" FontFamily="Microsoft YaHei UI" FontSize="28"
                                        FontWeight="ExtraBold" Foreground="{StaticResource TextPrimary}"/>
                             <TextBlock x:Name="PackInfo" Text="正在读取实例…" FontSize="13"
                                        Foreground="{StaticResource TextSecondary}" Margin="0,4,0,0"
@@ -63,7 +63,7 @@
                                         Margin="12,0,0,0" Click="OnLogout"/>
                             </StackPanel>
                             <TextBlock x:Name="AccountHint" Style="{StaticResource PageHint}" Margin="0,8,0,0"
-                                       Text="离线模式可直接启动；正版账号可登录微软。"/>
+                                       Text="离线模式填写玩家名后启动；正版账号可登录微软。"/>
                         </StackPanel>
                     </Border>
 

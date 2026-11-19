@@ -12,8 +12,8 @@
     <Version>1.0.0</Version>
     <Product>轻蓝启动器</Product>
     <AssemblyTitle>轻蓝启动器</AssemblyTitle>
-    <Company>轻蓝 MTR 2.0 社区</Company>
-    <Copyright>轻蓝 MTR 2.0 社区</Copyright>
+    <Company>轻蓝 MTR 4.x 社区</Company>
+    <Copyright>轻蓝 MTR 4.x 社区</Copyright>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\branding\app.ico</ApplicationIcon>
     <!-- 本仓库不含外部 NuGet 包；出现 PackageReference 属于事故 -->

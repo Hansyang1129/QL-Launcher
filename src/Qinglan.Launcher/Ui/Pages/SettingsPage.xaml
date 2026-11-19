@@ -64,7 +64,7 @@
                 <StackPanel>
                     <TextBlock Text="关于" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
                     <TextBlock Style="{StaticResource PageHint}" Margin="0,8,0,0" TextWrapping="Wrap"
-                               Text="轻蓝启动器 1.0.0 —— 为「轻蓝 MTR 2.0」社区定制的轻量启动器。&#x0a;同步方式：包驱动（.mrpack 即更新源，单一 mods 频道 + 可选组），与 QL-HMCL 新版引擎互通。&#x0a;启动链：整合包版本 JSON + Mojang 规则裁剪 + 缺才下 + Mojang 运行时自动下载；支持离线与微软设备码登录。&#x0a;MTR 轨交页、论坛页在 v1.1。"/>
+                               Text="轻蓝启动器 1.0.0 —— 为「轻蓝 MTR 4.x」社区定制的轻量启动器。&#x0a;同步方式：包驱动（.mrpack 即更新源，单一 mods 频道 + 可选组），与 QL-HMCL 新版引擎互通。&#x0a;启动链：整合包版本 JSON + Mojang 规则裁剪 + 缺才下 + Mojang 运行时自动下载；支持离线与微软设备码登录。&#x0a;MTR 轨交页、论坛页在 v1.1。"/>
                 </StackPanel>
             </Border>
         </StackPanel>

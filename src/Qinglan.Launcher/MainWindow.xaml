@@ -29,7 +29,7 @@
                        Foreground="{StaticResource TextPrimary}" Margin="10,0,8,0"
                        VerticalAlignment="Center"/>
             <Border Background="#E7F0FE" CornerRadius="6" Padding="7,2" VerticalAlignment="Center">
-                <TextBlock Text="MTR 2.0" FontSize="10" Foreground="{StaticResource AccentDeep}"/>
+                <TextBlock Text="MTR 4.x" FontSize="10" Foreground="{StaticResource AccentDeep}"/>
             </Border>
         </StackPanel>
         <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right"

@@ -8,7 +8,7 @@ namespace Qinglan.Launcher;
 public static class Globals
 {
     public const string ProductName = "轻蓝启动器";
-    public const string PackName = "轻蓝 MTR 2.0";
+    public const string PackName = "轻蓝 MTR 4.x";
     public const string Version = "1.0.0";
 
     public static string AssetsDir => Path.Combine(AppContext.BaseDirectory, "Assets");
