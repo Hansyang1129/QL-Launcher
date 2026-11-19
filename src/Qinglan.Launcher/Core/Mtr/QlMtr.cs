@@ -334,6 +334,27 @@ public static class QlMtr
         return result;
     }
 
+    /// <summary>
+    /// 从某站的实时到站行中选该线路/站台最近的一班。
+    /// <para>线路时刻表按站查询时，每站只拿到本站的 arrivals；该函数负责过滤线路与站台，
+    /// 这样不同车站可以落到不同班次，而不是一条线路共用同一班车的行程。</para>
+    /// </summary>
+    public static QlMtrArrival? NearestArrival(IReadOnlyList<QlMtrArrival> arrivals,
+        QlMtrRoute route, QlMtrRouteStop stop, long now)
+    {
+        QlMtrArrival? best = null;
+        foreach (var arrival in arrivals)
+        {
+            if (!string.Equals(arrival.RouteId, route.Id, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!string.IsNullOrEmpty(stop.PlatformName) &&
+                !string.Equals(arrival.PlatformName, stop.PlatformName, StringComparison.Ordinal))
+                continue;
+            if (arrival.Arrival < now - 60_000) continue;
+            if (best is null || arrival.Arrival < best.Arrival) best = arrival;
+        }
+        return best;
+    }
+
     /// <summary>双语名的中文部分。</summary>
     public static string PrimaryName(string bilingual)
     {

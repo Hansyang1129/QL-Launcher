@@ -9,13 +9,19 @@ namespace Qinglan.Launcher.Ui.Pages;
 /// <summary>
 /// MTR 轨交页：车站时刻表（按站台 / 按线路）、线路时刻表与路径规划。
 /// <para>数据语义对齐 QL-HMCL：静态网络来自 <c>stations-and-routes</c>，实时到站来自
-/// <c>arrivals</c>，线路时刻表由 <c>departures</c> 的相对偏移展开；路径规划优先展示
+/// <c>arrivals</c>，线路时刻表按站查询实时到站（失败时回退 <c>departures</c> 外推）；路径规划优先展示
 /// 服务器 <c>directions</c> 结果，再附上本地缓存网络的最多 5 条备选。</para>
 /// </summary>
 public partial class MtrPage : UserControl
 {
     private const int TrainsPerPlatform = 3;
+    private const int RouteTrainsPerPlatform = 12;
+    private const long RouteArrivalsTtlMs = 15_000;
     private const int MaxLocalPaths = 5;
+
+    private static readonly SemaphoreSlim RouteArrivalGate = new(4);
+    private readonly ConcurrentDictionary<string, (long FetchedAt, IReadOnlyList<QlMtrArrival> Rows)>
+        _routeArrivals = new(StringComparer.Ordinal);
 
     private QlMtrSnapshot? _snapshot;
     private QlMtrDepartures? _departures;
@@ -35,6 +41,7 @@ public partial class MtrPage : UserControl
     private bool _suppressSelection;
     private int _stationGeneration;
     private int _planGeneration;
+    private int _routeGeneration;
     private CancellationTokenSource? _cts;
 
     public MtrPage()
@@ -60,6 +67,7 @@ public partial class MtrPage : UserControl
             // 让迟到的结果在 generation 检查处失效，再取消在途请求。
             _stationGeneration++;
             _planGeneration++;
+            _routeGeneration++;
             _loading = false;
             _cts?.Cancel();
             _cts?.Dispose();
@@ -89,6 +97,7 @@ public partial class MtrPage : UserControl
         if (_loaded && !force) return;
         var ct = _cts?.Token ?? CancellationToken.None;
         _loading = true;
+        _routeArrivals.Clear();
         BtnMtrRefresh.IsEnabled = false;
         MtrStatusText.Text = "查询中…";
         try
@@ -585,6 +594,7 @@ public partial class MtrPage : UserControl
 
         _routeGroup = null;
         _routeDirection = null;
+        _routeGeneration++;
         RouteDirectionTabs.Children.Clear();
         RouteTitle.Text = "请选择线路";
         RouteSubtitle.Text = "同线上下行合并展示，选择方向查看站序";
@@ -595,6 +605,7 @@ public partial class MtrPage : UserControl
     /// <summary>显示线路头与方向页签；方向页签逐个列出该线路的上下行 / 服务方向。</summary>
     private void ApplyRouteGroup(RouteGroup group)
     {
+        _routeGeneration++;
         _routeGroup = group;
         RouteTitle.Text = group.Primary + (group.Service.Length > 0 ? "  " + group.Service : "");
         string subtitle = group.Secondary.Length > 0 ? group.Secondary + " · " : "";
@@ -644,17 +655,22 @@ public partial class MtrPage : UserControl
         if (sender is RadioButton tab && tab.Tag is QlMtrRoute route)
         {
             _routeDirection = route;
-            RenderRoute(route);
+            _ = RenderRouteAsync(route);
         }
     }
 
     private void RenderRoute()
     {
-        if (_routeDirection is not null) RenderRoute(_routeDirection);
+        if (_routeDirection is not null) _ = RenderRouteAsync(_routeDirection);
     }
 
-    private void RenderRoute(QlMtrRoute route)
+    /// <summary>
+    /// 线路时刻表：逐站查询实时到站，取该线路/站台最近一班；实时失败时退回时刻表外推。
+    /// 不能只用一条线路的 departures 外推——那样整条线会显示同一班车的行程。
+    /// </summary>
+    private async Task RenderRouteAsync(QlMtrRoute route)
     {
+        int generation = ++_routeGeneration;
         RouteScroll.ScrollToTop();
         RouteDetail.Children.Clear();
         if (_snapshot is null)
@@ -662,23 +678,58 @@ public partial class MtrPage : UserControl
             RouteDetail.Children.Add(Notice("MTR 地图 API 查询失败，请检查网络。"));
             return;
         }
-        if (_departures is null)
-            RouteDetail.Children.Add(Notice("该线路暂无时刻表（服务器时刻表接口不可用）。"));
 
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        for (int i = 0; i < route.Stops.Count; i++)
+        var stops = route.Stops;
+        RouteDetail.Children.Add(Notice("正在查询各站最近一班…"));
+
+        var liveTasks = stops.Select(stop => FetchStopArrivalsAsync(stop.StationId, now)).ToArray();
+        IReadOnlyList<QlMtrArrival>?[] live;
+        try
         {
-            var stop = route.Stops[i];
+            live = await Task.WhenAll(liveTasks);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            if (generation != _routeGeneration) return;
+            RouteDetail.Children.Clear();
+            RouteDetail.Children.Add(Notice("线路实时到站查询失败：" + ex.Message));
+            Globals.Log("MTR 线路实时到站查询失败: " + ex);
+            return;
+        }
+        if (generation != _routeGeneration || !ReferenceEquals(route, _routeDirection)) return;
+
+        RouteDetail.Children.Clear();
+        for (int i = 0; i < stops.Count; i++)
+        {
+            var stop = stops[i];
             string name = _stationNames.TryGetValue(stop.StationId, out string? stationName)
                 ? stationName
                 : stop.StationId;
             string next = "—";
-            if (_departures is not null)
+            bool realtime = false;
+            long? arrivalAt = null;
+
+            if (live[i] is { } rows)
+            {
+                var arrival = QlMtr.NearestArrival(rows, route, stop, now);
+                if (arrival is not null)
+                {
+                    arrivalAt = arrival.Arrival;
+                    realtime = arrival.Realtime;
+                }
+            }
+            if (arrivalAt is null && _departures is not null)
             {
                 var departures = QlMtr.NextAt(_departures, route, i, now, 1);
-                if (departures.Count > 0)
-                    next = MinutesText(departures[0].ArrivalAt, now) + "后到站";
+                if (departures.Count > 0) arrivalAt = departures[0].ArrivalAt;
             }
+            if (arrivalAt is not null)
+                next = MinutesText(arrivalAt.Value, now) + "后到站";
 
             var row = new Grid();
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
@@ -700,13 +751,53 @@ public partial class MtrPage : UserControl
             Grid.SetColumn(middle, 1);
             row.Children.Add(middle);
 
-            var nextText = Text(next, 12, FontWeights.Normal, "Microsoft YaHei UI", "TextSecondary",
-                0, HorizontalAlignment.Right);
-            nextText.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(nextText, 2);
-            row.Children.Add(nextText);
+            var right = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            right.Children.Add(Text(next, 12, FontWeights.Normal, "Microsoft YaHei UI",
+                "TextSecondary", 0, HorizontalAlignment.Right));
+            if (realtime) right.Children.Add(Pill("实时", "OkGreen"));
+            Grid.SetColumn(right, 2);
+            row.Children.Add(right);
 
             RouteDetail.Children.Add(Block(row));
+        }
+    }
+
+    /// <summary>按站查询实时到站（15 秒缓存 + 最多 4 并发）；失败返回 null 让调用方走时刻表兜底。</summary>
+    private async Task<IReadOnlyList<QlMtrArrival>?> FetchStopArrivalsAsync(string stationId, long now)
+    {
+        if (_routeArrivals.TryGetValue(stationId, out var cached) &&
+            now - cached.FetchedAt < RouteArrivalsTtlMs)
+            return cached.Rows;
+
+        var ct = _cts?.Token ?? CancellationToken.None;
+        try
+        {
+            await RouteArrivalGate.WaitAsync(ct);
+            try
+            {
+                var rows = await QlMtr.FetchArrivalsAsync(new[] { stationId },
+                    RouteTrainsPerPlatform, ct);
+                _routeArrivals[stationId] = (now, rows);
+                return rows;
+            }
+            finally
+            {
+                RouteArrivalGate.Release();
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Globals.Log("MTR 线路实时到站失败 " + stationId + ": " + ex.Message);
+            return null;
         }
     }
 

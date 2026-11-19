@@ -164,6 +164,26 @@ internal static class MtrSuite
         T.CheckEq("第三站取本站最近一班", 1300000L, deepStop[0].ArrivalAt);
         T.CheckEq("第三站对应首班发车", 1000000L, deepStop[0].DepartureAt);
 
+        // 线路时刻表改用每站实时到站后：必须按线路 + 站台过滤，并且不同站可以命中不同班次。
+        var stop = new QlMtrRouteStop(route.Stops[1].StationId, "2", 1000);
+        QlMtrArrival Row(long arrival, string routeId, string platform) => new(
+            "终点", arrival, arrival + 1000, 0, true, 0, false, routeId, "一号线", "1", 0,
+            "0000000000000001", platform, Array.Empty<string>());
+        var live = new[]
+        {
+            Row(1050000, route.Id, "2"),
+            Row(1030000, route.Id, "2"),
+            Row(1020000, route.Id, "1"),
+            Row(1010000, "00000000000000FF", "2"),
+        };
+        var nearest = QlMtr.NearestArrival(live, route, stop, 1000000);
+        T.CheckEq("实时最近一班按线路与站台过滤", 1030000L, nearest!.Arrival);
+        T.Check("实时站台不匹配时没有结果",
+            QlMtr.NearestArrival(live, route, new QlMtrRouteStop(stop.StationId, "9", 0),
+                1000000) is null);
+        T.Check("实时到站超过一分钟被过滤",
+            QlMtr.NearestArrival(live, route, stop, 1300000) is null);
+
         var unknown = QlMtr.NextAt(departures, new QlMtrRoute("00000000000000FF", "无|None", 0, "",
             false, "NONE", Array.Empty<QlMtrRouteStop>(), Array.Empty<long>()), 0, 1000000, 5);
         T.Check("未知线路返回空表", unknown.Count == 0);
