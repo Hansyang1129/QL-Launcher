@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Qinglan.Launcher.Core;
 using Qinglan.Launcher.Core.Auth;
+using Qinglan.Launcher.Core.Diagnostics;
 using Qinglan.Launcher.Core.Launch;
 
 namespace Qinglan.Launcher.Ui.Pages;
@@ -17,7 +18,9 @@ namespace Qinglan.Launcher.Ui.Pages;
 public partial class HomePage : UserControl
 {
     private static readonly Random Rng = new();
-    private static readonly int[] MemoryValues = { 0, 4096, 6144, 8192, 12288, 16384 };
+    private readonly List<int> _memoryValues = new();
+    private readonly Queue<string> _recentLog = new();
+    private string? _lastDiagnosisFingerprint;
 
     private QlConfig _config = new();
     private string? _gameRoot;
@@ -42,8 +45,6 @@ public partial class HomePage : UserControl
     public HomePage()
     {
         InitializeComponent();
-        foreach (var label in new[] { "自动（推荐）", "4096 MB", "6144 MB", "8192 MB", "12288 MB", "16384 MB" })
-            MemoryBox.Items.Add(label);
         TryLoadWallpaper();
         Loaded += (_, _) => Refresh();
     }
@@ -95,8 +96,7 @@ public partial class HomePage : UserControl
         try
         {
             PlayerNameBox.Text = (_config.PlayerName ?? "").Trim();
-            var memIndex = Array.IndexOf(MemoryValues, _config.MaxMemoryMb);
-            MemoryBox.SelectedIndex = memIndex >= 0 ? memIndex : 0;
+            RebuildMemoryChoices();
         }
         finally
         {
@@ -366,6 +366,7 @@ public partial class HomePage : UserControl
 
         _prepCts = new CancellationTokenSource();
         var ct = _prepCts.Token;
+        ShowDiagnosis(null);
         SetBusy(true);
         LaunchBar.Visibility = Visibility.Visible;
         LaunchBar.IsIndeterminate = true;
@@ -420,9 +421,18 @@ public partial class HomePage : UserControl
 
             var profile = await ResolveProfileAsync(ct);
             var memory = QlMemory.EffectiveMb(_config.MaxMemoryMb, QlMemory.PhysicalBytes());
-            var args = QlArgsBuilder.Build(prep, runDir, profile, memory);
+            int finalMemory = memory;
+            bool xmxOverridden = false;
+            if (QlJvmOptions.TryParse(_config.JvmArgs, memory, out var jvmPlan, out _))
+            {
+                finalMemory = jvmPlan.XmxMb;
+                xmxOverridden = jvmPlan.UserProvidedXmx;
+            }
+            var args = QlArgsBuilder.Build(prep, runDir, profile, memory, _config.JvmArgs,
+                _config.UseVersionJvmArgs);
 
-            AppendLog("[启动器] Java " + java.MajorVersion + " · 内存 " + memory + " MB · 账号 " +
+            AppendLog("[启动器] Java " + java.MajorVersion + " · 内存 " + finalMemory + " MB"
+                      + (xmxOverridden ? "（-Xmx 由额外 JVM 参数覆盖）" : "") + " · 账号 " +
                       profile.Name + "（" + profile.UserType + "）");
             AppendLog("[启动器] 主类 " + prep.MainClass + " · 类路径 " + prep.Classpath.Count +
                       " 段 · 实例 " + runDir);
@@ -441,9 +451,12 @@ public partial class HomePage : UserControl
         catch (Exception ex)
         {
             LaunchStatus.Text = "启动失败：" + FriendlyMessage(ex);
-            LaunchHint.Text = "可稍后重试；若反复失败，把右侧日志和 data/launcher.log 发给维护者。";
+            LaunchHint.Text = "已生成本地排查建议；可展开原始日志核对。";
             AppendLog("[启动器] 启动失败：" + ex.Message);
             Globals.Log("启动失败: " + ex);
+            ShowDiagnosis(QlErrorDiagnoser.Diagnose(new QlErrorContext(
+                -1, Array.Empty<string>(), _recentLog.ToArray(),
+                QlLogTail.ReadTail(App.LogFile, 200), ex)));
         }
         finally
         {
@@ -532,12 +545,24 @@ public partial class HomePage : UserControl
 
     private void OnGameExit(int code)
     {
+        var stderr = _game?.StderrTail ?? Array.Empty<string>();
         Ui(() =>
         {
             foreach (var plain in _logXml.FlushPending()) AppendLog(plain);
             AppendLog("[启动器] 游戏已退出，代码 " + code + "。");
             LaunchStatus.Text = code == 0 ? "游戏已正常退出。" : "游戏已退出（代码 " + code + "）。";
             LaunchHint.Text = "可以再次启动；日志保留供排查。";
+            if (code != 0)
+            {
+                var context = new QlErrorContext(code, stderr, _recentLog.ToArray(),
+                    QlLogTail.ReadTail(App.LogFile, 200));
+                ShowDiagnosis(QlErrorDiagnoser.Diagnose(context));
+                LaunchHint.Text = "已生成本地排查建议；可展开原始日志核对。";
+            }
+            else
+            {
+                ShowDiagnosis(null);
+            }
             var old = _game;
             _game = null;
             old?.Dispose();
@@ -563,12 +588,41 @@ public partial class HomePage : UserControl
 
     private void OnMemoryChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_loadingUi || MemoryBox.SelectedIndex < 0) return;
-        _config.MaxMemoryMb = MemoryValues[MemoryBox.SelectedIndex];
+        if (_loadingUi || MemoryBox.SelectedIndex < 0 ||
+            MemoryBox.SelectedIndex >= _memoryValues.Count) return;
+        _config.MaxMemoryMb = _memoryValues[MemoryBox.SelectedIndex];
         SaveConfigQuiet();
     }
 
-    private void OnClearLog(object sender, RoutedEventArgs e) => LaunchLog.Clear();
+    /// <summary>首页快捷档位；设置页写入非档位值时追加“自定义：N MB”。</summary>
+    private void RebuildMemoryChoices()
+    {
+        _memoryValues.Clear();
+        _memoryValues.Add(0);
+        _memoryValues.AddRange(new[] { 4096, 6144, 8192, 12288, 16384 });
+        bool custom = _config.MaxMemoryMb > 0 && !_memoryValues.Contains(_config.MaxMemoryMb);
+        if (custom) _memoryValues.Add(_config.MaxMemoryMb);
+
+        MemoryBox.Items.Clear();
+        foreach (int value in _memoryValues)
+        {
+            string label = value == 0
+                ? "自动（推荐）"
+                : custom && value == _config.MaxMemoryMb
+                    ? "自定义：" + value + " MB"
+                    : value + " MB";
+            MemoryBox.Items.Add(label);
+        }
+        int index = _memoryValues.IndexOf(_config.MaxMemoryMb);
+        MemoryBox.SelectedIndex = index >= 0 ? index : 0;
+    }
+
+    private void OnClearLog(object sender, RoutedEventArgs e)
+    {
+        LaunchLog.Clear();
+        _recentLog.Clear();
+        ShowDiagnosis(null);
+    }
     private void OnOpenGameDir(object sender, RoutedEventArgs e)
     {
         var dir = _runDir ?? _gameRoot;
@@ -619,12 +673,32 @@ public partial class HomePage : UserControl
     {
         Ui(() =>
         {
+            _recentLog.Enqueue(line);
+            while (_recentLog.Count > 300) _recentLog.Dequeue();
             if (LaunchLog.Text == LogPlaceholder) LaunchLog.Clear();
             LaunchLog.AppendText(line + Environment.NewLine);
             if (LaunchLog.Text.Length > 200_000)
                 LaunchLog.Text = LaunchLog.Text[^100_000..];
             LaunchLog.ScrollToEnd();
         });
+    }
+
+    /// <summary>把本地归因卡接入现有启动卡片；同一日志指纹不重复插入。</summary>
+    private void ShowDiagnosis(QlDiagnosis? diagnosis)
+    {
+        if (DiagnosisHost is null) return;
+        if (diagnosis is null)
+        {
+            DiagnosisHost.Children.Clear();
+            _lastDiagnosisFingerprint = null;
+            return;
+        }
+        if (diagnosis.Fingerprint == _lastDiagnosisFingerprint &&
+            DiagnosisHost.Children.Count > 0)
+            return;
+        _lastDiagnosisFingerprint = diagnosis.Fingerprint;
+        DiagnosisHost.Children.Clear();
+        DiagnosisHost.Children.Add(ConfigNotice.Build(diagnosis));
     }
 
     private void SaveConfigQuiet()

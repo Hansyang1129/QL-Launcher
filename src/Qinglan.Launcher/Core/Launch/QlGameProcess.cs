@@ -10,6 +10,8 @@ public sealed class QlGameProcess : IDisposable
     private readonly Process _proc;
     private readonly Action<string>? _onLine;
     private readonly Action<int>? _onExit;
+    private readonly Queue<string> _stderrTail = new();
+    private readonly object _stderrGate = new();
     private int _exitCode = int.MinValue;
 
     /// <param name="onLine">每行回调（stderr 行前缀 "(ERR) "）；可能并发到达，消费方自行排队。</param>
@@ -38,10 +40,18 @@ public sealed class QlGameProcess : IDisposable
         };
         _proc.ErrorDataReceived += (_, e) =>
         {
-            if (e.Data is not null) _onLine?.Invoke("(ERR) " + e.Data);
+            if (e.Data is null) return;
+            lock (_stderrGate)
+            {
+                _stderrTail.Enqueue(e.Data);
+                while (_stderrTail.Count > 200) _stderrTail.Dequeue();
+            }
+            _onLine?.Invoke("(ERR) " + e.Data);
         };
         _proc.Exited += (_, _) =>
         {
+            // 先等异步 stdout/stderr 排空，归因才能看到最后一行异常。
+            try { _proc.WaitForExit(); } catch { /* 已退出 */ }
             _exitCode = SafeExitCode();
             _onExit?.Invoke(_exitCode);
         };
@@ -53,6 +63,16 @@ public sealed class QlGameProcess : IDisposable
 
     /// <summary>启动异常/崩溃在这里吐出；进程未退出时给 int.MinValue。</summary>
     public int CurrentExitCode => Volatile.Read(ref _exitCode);
+
+    /// <summary>最近 200 行原始 stderr（不带 (ERR) 前缀），只给本地归因用。</summary>
+    public IReadOnlyList<string> StderrTail
+    {
+        get
+        {
+            lock (_stderrGate) return _stderrTail.ToArray();
+        }
+    }
+
     public bool HasExited => _proc.HasExited;
 
     /// <summary>终止整棵进程树（关 MC 等同于按电源键）。返回是否真得手。</summary>

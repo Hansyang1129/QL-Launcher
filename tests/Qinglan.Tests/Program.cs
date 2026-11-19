@@ -21,6 +21,8 @@ try
     SyncScenariosSuite.Run();
     PackDblpackSuite.Run();
     LaunchSuite.Run();
+    JvmArgsSuite.Run();
+    DiagnosisSuite.Run();
     AuthSuite.Run();
     RuntimeSuite.Run();
     StatusSuite.Run();

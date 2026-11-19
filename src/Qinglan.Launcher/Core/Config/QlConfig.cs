@@ -28,6 +28,15 @@ public sealed class QlConfig
     /// <summary>游戏内存上限 MB；0 = 自动（按物理内存取 1/4，夹 [2048, 8192]）。</summary>
     [JsonPropertyName("maxMemoryMb")] public int MaxMemoryMb { get; set; }
 
+    /// <summary>额外 JVM 参数（空格分隔；引号包裹含空格参数）；空 = 不追加。</summary>
+    [JsonPropertyName("jvmArgs")] public string? JvmArgs { get; set; }
+
+    /// <summary>额外 JVM 参数是否按“每个参数一行”展示（仅本地 UI 偏好）。</summary>
+    [JsonPropertyName("jvmArgsOnePerLine")] public bool JvmArgsOnePerLine { get; set; }
+
+    /// <summary>是否在启动时注入版本 JSON 自带的 JVM 参数；默认 true。</summary>
+    [JsonPropertyName("useVersionJvmArgs")] public bool UseVersionJvmArgs { get; set; } = true;
+
     /// <summary>部署端点（A 类留空 = 模块禁用；B 类留空 = 官方默认）。</summary>
     /// <para>开源仓库只提交空壳模板；真实值由本地 <c>data/config/config.json</c> 或构建期内嵌文件提供。
     /// 字段语义与归一化见 <see cref="QlDeployment"/>。</para>

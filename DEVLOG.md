@@ -309,3 +309,13 @@
   行程（实测 1→24 分钟单调递增）。现在按站请求 `arrivals`（最多 4 并发、15 秒缓存），按线路 +
   站台选本站最近一班，失败才回退 `departures`；新增 `QlMtr.NearestArrival` 回归检查。实测
   荃灣快綫各站显示 0–2 分钟的不同班次，不再是单一列车。测试 468/468 全绿，构建 0 错 0 警。
+- **2026-11-19 R2：JVM/内存自定义 + 本地错误归因**：新增 `QlConfig.JvmArgs` /
+  `JvmArgsOnePerLine`（只进本地配置，空壳模板未改）与 `QlJvmOptions`：自由内存输入、引号分词、
+  `-Xmx` 唯一化（用户值 > 内存字段，版本 JSON 自带项删除）、用户 log4j 覆盖时不重复注入；
+  设置页提供内存快捷档位、额外参数、行内校验、「每个参数一行」勾选框与 JVM 预览，首页内存下拉
+  支持自定义值；「Mojang 默认」按钮把版本 JSON 自带 JVM 参数填入额外参数框并关闭重复注入，
+  `UseVersionJvmArgs` 默认 true。默认空参数时命令行与 R1 逐字等价。错误侧新增 `Core/Diagnostics` 数据驱动规则
+  （缺 Java / Java 版本 / OOM / 模组冲突 / 下载网络 / 登录 / 原生崩溃 / 未知），`QlGameProcess`
+  保留 stderr 尾部，`QlLogTail` 读 launcher.log 尾部，诊断卡复用 `ConfigNotice` 样式并带原始
+  日志展开与本地 SHA-1 指纹；全程无上传、无新网络请求、无新依赖。测试 540/540 全绿，构建
+  0 错 0 警；`config.example.json` 未改动。

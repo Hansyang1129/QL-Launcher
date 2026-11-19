@@ -19,7 +19,7 @@ public static class QlEmbeddedConfig
     /// <summary>内嵌的部署端点；没有内嵌文件时为 null。</summary>
     public static QlDeploymentConfig? Deployment => Defaults.Value?.Deployment;
 
-    /// <summary>内嵌的微软 OAuth client id；没有时为空。</summary>
+    /// <summary>内嵌的微软 OAuth 客户端 id；没有时为空。</summary>
     public static string? MicrosoftClientId => Defaults.Value?.MicrosoftClientId;
 
     private static QlConfig? LoadCore()

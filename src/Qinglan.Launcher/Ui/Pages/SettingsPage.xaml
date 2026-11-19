@@ -43,6 +43,74 @@
 
             <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                 <StackPanel>
+                    <TextBlock Text="Java 启动参数" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
+                    <TextBlock Style="{StaticResource PageHint}" Margin="0,6,0,10" TextWrapping="Wrap"
+                               Text="内存与额外 JVM 参数只保存在本机。留空表示自动/不追加；非法输入会在下方提示，不会保存。"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="140"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="内存上限" VerticalAlignment="Center" FontSize="13"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   FontFamily="Microsoft YaHei UI"/>
+                        <TextBox x:Name="MemoryInputBox" Grid.Column="1" Style="{StaticResource InputBorder}"
+                                 Margin="10,0" VerticalContentAlignment="Center"
+                                 TextChanged="OnJvmInputChanged"/>
+                        <TextBlock Grid.Column="2" Text="MB；留空 = 自动（物理内存 1/4，夹 2048–8192）"
+                                   VerticalAlignment="Center" FontSize="12"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   FontFamily="Microsoft YaHei UI" TextWrapping="Wrap"/>
+                    </Grid>
+                    <WrapPanel Margin="0,8,0,0">
+                        <Button Content="自动" Tag="0" Style="{StaticResource BtnGhost}"
+                                Click="OnMemoryPreset"/>
+                        <Button Content="4096 MB" Tag="4096" Style="{StaticResource BtnGhost}"
+                                Margin="6,0,0,0" Click="OnMemoryPreset"/>
+                        <Button Content="6144 MB" Tag="6144" Style="{StaticResource BtnGhost}"
+                                Margin="6,0,0,0" Click="OnMemoryPreset"/>
+                        <Button Content="8192 MB" Tag="8192" Style="{StaticResource BtnGhost}"
+                                Margin="6,0,0,0" Click="OnMemoryPreset"/>
+                        <Button Content="12288 MB" Tag="12288" Style="{StaticResource BtnGhost}"
+                                Margin="6,0,0,0" Click="OnMemoryPreset"/>
+                        <Button Content="16384 MB" Tag="16384" Style="{StaticResource BtnGhost}"
+                                Margin="6,0,0,0" Click="OnMemoryPreset"/>
+                    </WrapPanel>
+
+                    <TextBlock Text="额外 JVM 参数" Margin="0,12,0,4" FontSize="13"
+                               Foreground="{StaticResource TextSecondary}"
+                               FontFamily="Microsoft YaHei UI"/>
+                    <TextBox x:Name="JvmArgsBox" Style="{StaticResource InputBorder}" Height="86"
+                             TextWrapping="Wrap" AcceptsReturn="False"
+                             VerticalScrollBarVisibility="Auto" TextChanged="OnJvmInputChanged"/>
+                    <CheckBox x:Name="JvmPrettyCheck" Content="每个参数一行（见空格换行）"
+                              Margin="0,6,0,0" Checked="OnJvmPrettyChanged"
+                              Unchecked="OnJvmPrettyChanged"/>
+                    <WrapPanel Margin="0,6,0,0">
+                        <Button x:Name="BtnMojangJvm" Content="Mojang 默认" Style="{StaticResource BtnGhost}"
+                                Click="OnFillMojangJvm"/>
+                        <CheckBox x:Name="UseVersionJvmCheck" Content="同时使用版本 JSON 自带 JVM 参数"
+                                  Margin="10,0,0,0" VerticalAlignment="Center"
+                                  Checked="OnJvmVersionChanged" Unchecked="OnJvmVersionChanged"/>
+                    </WrapPanel>
+                    <TextBlock x:Name="JvmStatusText" Style="{StaticResource PageHint}"
+                               Margin="0,6,0,0" TextWrapping="Wrap"/>
+                    <Button x:Name="BtnSaveJvm" Content="保存启动参数" Style="{StaticResource BtnGhost}"
+                            Margin="0,8,0,0" Click="OnSaveJvm"/>
+
+                    <TextBlock Text="最终 JVM 参数预览（不含游戏参数）" Style="{StaticResource PageHint}"
+                               Margin="0,12,0,4"/>
+                    <TextBox x:Name="JvmPreviewBox" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
+                             MinHeight="86" MaxHeight="180" TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" Background="#F7FAFF"
+                             BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                             Padding="8" AcceptsReturn="True"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
                     <TextBlock Text="微软登录（可选）" FontWeight="Bold" FontSize="14" FontFamily="Microsoft YaHei UI"/>
                     <TextBlock Style="{StaticResource PageHint}" Margin="0,6,0,8" TextWrapping="Wrap"
                                Text="填写 Azure 应用的 client id 后，首页会出现「登录微软账号」（设备码流程）。留空则只用离线账号；离线模式不适用于正版验证服务器。"/>
